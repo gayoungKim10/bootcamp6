@@ -1,0 +1,1294 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>TFT 제작 일지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one phone-width column. Sticky run header + sample tabs, then process cards stacked by stage (준비 → 채널층 → 소스·드레인). Amber = the yellow light of the lithography bay. */
+:root{
+  --bg:#ECEEEB; --surface:#FFFFFF; --sunk:#F4F5F3; --ink:#1A2024; --muted:#59646B; --line:#D2D7D4; --line-strong:#B5BDB9;
+  --amber:#E2A200; --amber-ink:#704C00; --amber-soft:#FFF0C2;
+  --ok:#2B7749; --ok-soft:#DCF0E3; --warn:#AE4309; --warn-soft:#FBE5D8; --link:#2D53A0; --link-soft:#E1E8F7;
+  --f-sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111518; --surface:#1A1F23; --sunk:#14181B; --ink:#E6EAEB; --muted:#97A2A8; --line:#2B3338; --line-strong:#3D474D;
+    --amber:#F0B72A; --amber-ink:#F6CF66; --amber-soft:#3A2E0E;
+    --ok:#5BC189; --ok-soft:#173326; --warn:#F2904F; --warn-soft:#3A2015; --link:#93ACEE; --link-soft:#1D2944;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111518; --surface:#1A1F23; --sunk:#14181B; --ink:#E6EAEB; --muted:#97A2A8; --line:#2B3338; --line-strong:#3D474D;
+  --amber:#F0B72A; --amber-ink:#F6CF66; --amber-soft:#3A2E0E;
+  --ok:#5BC189; --ok-soft:#173326; --warn:#F2904F; --warn-soft:#3A2015; --link:#93ACEE; --link-soft:#1D2944;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+#app{max-width:720px;margin:0 auto}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance;margin:0}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.01em}
+.mark{width:14px;height:14px;border-radius:3px;background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.sync{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.sync.live i{background:var(--ok)}
+.sync.lag i{background:var(--warn)}
+.back{border:0;background:none;padding:6px 4px;color:var(--muted);font-size:14px}
+.runname{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.runhead{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+
+/* generic controls */
+.btn,.primary,.ghost{border-radius:8px;padding:9px 14px;font-weight:600;font-size:14px;border:1px solid var(--line-strong);background:var(--surface)}
+.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.primary:disabled{opacity:.35;cursor:default}
+.ghost{background:transparent}
+.ghost:disabled{opacity:.35;cursor:default}
+.sm{padding:6px 10px;font-size:13px}
+.danger{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.icon{width:38px;height:38px;padding:0;border-radius:8px;border:1px solid var(--line);background:transparent;font-size:16px}
+.icon:disabled{opacity:.3;cursor:default}
+input,select,textarea{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:16px;min-width:0;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--amber);outline:none;box-shadow:0 0 0 3px var(--amber-soft)}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+textarea{resize:vertical;min-height:74px;line-height:1.5}
+fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.check input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--ink)}
+.check small{display:block;color:var(--muted);font-size:12.5px}
+.check small.warnt{color:var(--warn)}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px}
+.panel h2,.panel h3{font-size:17px;font-weight:700}
+.panel p{margin:0;color:var(--muted);font-size:14px}
+.fl{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.fl > input,.fl > select{color:var(--ink);font-weight:400}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:8px;width:max-content;background:var(--sunk)}
+.stepper button{border:0;background:none;width:44px;height:42px;font-size:20px}
+.stepper output{min-width:44px;text-align:center;font-family:var(--f-mono);font-size:17px;font-weight:600;color:var(--ink)}
+.notice{border-radius:var(--r);padding:12px 14px;font-size:14px;background:var(--surface);border:1px dashed var(--line-strong);color:var(--muted)}
+.notice.warn{background:var(--warn-soft);border:0;color:var(--ink)}
+
+/* home */
+.hello{padding-block:18px 8px;display:grid;gap:6px}
+.hello h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.hello p{margin:0;color:var(--muted);max-width:52ch}
+.sect{font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin:22px 0 8px}
+.runs{display:grid;gap:10px}
+.runcard{display:grid;gap:8px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;width:100%}
+.runcard:hover{border-color:var(--line-strong)}
+.rc-top{display:flex;align-items:baseline;gap:10px}
+.rc-top b{font-size:20px;font-weight:700}
+.rc-top span{color:var(--muted);font-size:13px;margin-left:auto}
+.rc-samples{display:flex;flex-wrap:wrap;gap:6px}
+.sbar{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:3px 8px;background:var(--sunk)}
+.sbar .mono{color:var(--muted)}
+.home-stack{display:grid;gap:12px}
+
+/* tabs */
+.stick{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg)}
+.stick .top{position:static}
+.sync.dotonly{margin-left:2px;font-size:0;gap:0}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-block:4px 10px;scrollbar-width:none;border-bottom:1px solid var(--line)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;display:flex;gap:7px;align-items:baseline;font-weight:600}
+.tab small{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);font-weight:500}
+.tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab.on small{color:inherit;opacity:.7}
+.tab.dash{border-style:dashed;background:transparent;color:var(--muted)}
+.tab.tl{margin-left:auto}
+.runmenu{display:flex;gap:8px;flex-wrap:wrap;padding-block:0 10px}
+
+.samplebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-block:14px 4px}
+.samplebar h2{font-size:18px;font-weight:700}
+.prog{flex:1;min-width:120px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.prog .track{flex:1;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+.prog .track i{display:block;height:100%;background:var(--ok)}
+.inline-edit{display:flex;gap:8px;align-items:center;flex:1;min-width:200px}
+
+/* stage headers */
+.stage{display:flex;align-items:center;gap:10px;margin:22px 0 8px;font-size:13px;font-weight:700;letter-spacing:.04em}
+.stage::after{content:"";flex:1;height:1px;background:var(--line)}
+.stage-n{font-family:var(--f-mono);font-size:11px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-strong);color:var(--muted)}
+.steps{display:grid;gap:8px}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);scroll-margin-top:130px}
+.card.open{border-color:var(--line-strong);box-shadow:0 6px 20px -12px rgb(0 0 0 / .35)}
+.card-h{all:unset;box-sizing:border-box;display:grid;grid-template-columns:22px 1fr 16px;gap:10px;width:100%;padding:12px 14px;cursor:pointer;border-radius:var(--r)}
+.card-h:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+.dot{width:16px;height:16px;border-radius:50%;margin-top:3px;border:2px solid var(--line-strong);position:relative}
+.st-part .dot{border-color:var(--amber);background:linear-gradient(90deg,var(--amber) 50%,transparent 50%)}
+.st-run .dot{border-color:var(--amber);background:var(--amber-soft);animation:pulse 1.8s ease-in-out infinite}
+.st-done .dot{border-color:var(--ok);background:var(--ok)}
+.st-done .dot::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid var(--surface);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.st-skip .dot{border-style:dashed}
+@keyframes pulse{50%{box-shadow:0 0 0 4px var(--amber-soft)}}
+.ch-main{display:grid;gap:5px;min-width:0}
+.ch-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.idx{font-size:12px;color:var(--muted)}
+.ttl{font-weight:600;font-size:15.5px}
+.st-skip .ttl{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong)}
+.pill{font-size:11.5px;font-weight:600;border-radius:5px;padding:1px 7px}
+.pill.done{background:var(--ok-soft);color:var(--ok)}
+.pill.run{background:var(--amber-soft);color:var(--amber-ink)}
+.pill.part{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.pill.skip{background:var(--sunk);color:var(--muted)}
+.pill.unsaved{background:var(--warn-soft);color:var(--warn)}
+.ch-sum{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.ch-sum b{color:var(--ink);font-weight:600}
+.card.open .ch-sum,.card.open .ch-note{display:none}
+.fx{font-family:var(--f-mono);font-size:12px;font-weight:500;background:var(--amber-soft);color:var(--amber-ink);border-radius:4px;padding:1px 6px}
+.ch-shared{font-size:12.5px;color:var(--link);display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.sb{font-family:var(--f-mono);font-size:11.5px;background:var(--link-soft);color:var(--link);border-radius:4px;padding:0 5px}
+.ch-note{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{width:9px;height:9px;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);margin-top:6px;transition:transform .15s}
+.card.open .chev{transform:rotate(-135deg);margin-top:10px}
+
+.card-b{padding:4px 14px 14px 46px;display:grid;gap:16px}
+.fld{display:grid;gap:6px}
+.lbl{font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.lbl em{font-style:normal;font-weight:400;opacity:.8;margin-left:4px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content;max-width:100%}
+.seg button{border:0;background:transparent;padding:8px 14px;font-size:14px;font-weight:500;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid color-mix(in srgb,var(--amber) 50%,transparent);background:var(--amber-soft);color:var(--amber-ink);border-radius:6px;padding:6px 10px;font-family:var(--f-mono);font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.chip small{font-family:var(--f-sans);font-weight:500;font-size:11.5px;opacity:.8}
+.chip.edit input{width:90px;padding:4px 6px;font-family:var(--f-mono)}
+.dt{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dt input[type=date]{flex:1 1 150px}
+.dt input[type=time]{flex:1 1 110px}
+.unit{display:flex;align-items:center;gap:6px}
+.unit span,.ms span{font-size:13px;color:var(--muted);flex:none}
+.unit input{max-width:130px}
+.ms{display:flex;align-items:center;gap:6px}
+.ms input{width:70px}
+.durbox{font-size:14px;border-radius:8px;padding:9px 12px;background:var(--sunk);border:1px solid var(--line)}
+.durbox b{font-family:var(--f-mono);font-size:16px}
+.durbox.bad{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.dep{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px;background:var(--sunk)}
+.dep input{background:var(--surface)}
+.dep-h{display:flex;gap:8px;align-items:center}
+.dep-h .mono{font-size:12px;color:var(--muted)}
+.dep-h input{font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.mini{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+.gas{display:flex;gap:6px;align-items:center}
+.gas > input{flex:1}
+.gas .unit input{max-width:90px}
+.add{border:1px dashed var(--line-strong);background:transparent;border-radius:8px;padding:9px;font-size:13.5px;font-weight:600;color:var(--muted);width:100%}
+.add.big{padding:14px;font-size:14.5px;margin-top:14px}
+.shared{background:var(--link-soft);border-radius:8px;padding:10px 12px;font-size:13.5px;display:grid;gap:8px}
+.shared p{margin:0}
+.stale{background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:13.5px;display:grid;gap:8px}
+.stale p{margin:0}
+.cfrow{display:flex;gap:8px;align-items:center}
+.cfform{border:1px dashed var(--line-strong);border-radius:8px;padding:12px;display:grid;gap:10px}
+.cfform .grid2{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+.linkbox{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:12px}
+.linkbox h4{margin:0;font-size:14px}
+.foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.foot .sp{flex:1}
+.meta{font-size:12px;color:var(--muted)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:13.5px;width:100%}
+.confirm span{flex:1 1 200px}
+
+/* timeline */
+.tlday{margin:20px 0 6px;font-weight:700;font-size:14px;display:flex;gap:10px;align-items:center}
+.tlday::after{content:"";flex:1;height:1px;background:var(--line)}
+.tl{display:grid}
+.tl-row{all:unset;box-sizing:border-box;display:grid;grid-template-columns:58px 1fr;gap:0;cursor:pointer;border-radius:6px}
+.tl-row:hover .tl-main b{text-decoration:underline;text-decoration-color:var(--line-strong)}
+.tl-row:focus-visible{outline:2px solid var(--amber)}
+.tl-t{font-family:var(--f-mono);font-size:13px;color:var(--muted);text-align:right;padding:8px 14px 8px 0;position:relative}
+.tl-t::after{content:"";position:absolute;right:-6px;top:13px;width:8px;height:8px;border-radius:50%;background:var(--surface);border:2px solid var(--line-strong);z-index:1}
+.tl-main{border-left:2px solid var(--line);padding:8px 0 8px 16px}
+.tl-row.done .tl-t::after{background:var(--ok);border-color:var(--ok)}
+.tl-row.run .tl-t::after{background:var(--amber);border-color:var(--amber)}
+.tl-main{display:grid;gap:2px}
+.tl-main b{font-weight:600}
+.tl-d{font-size:13px;color:var(--muted)}
+.tl-d strong{color:var(--ink);font-family:var(--f-mono);font-weight:600}
+
+.busy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);box-shadow:0 8px 24px -10px rgb(0 0 0 / .4);padding:10px 16px;border-radius:8px;font-size:14px;z-index:19;max-width:calc(100% - 32px)}
+.ro .w{display:none!important}
+.empty{color:var(--muted);font-size:14px;padding:18px 0}
+@media (max-width:460px){
+  .card-b{padding-left:14px}
+  .runname{font-size:20px}
+}
+@media (prefers-reduced-motion: reduce){
+  .st-run .dot{animation:none}
+  .chev{transition:none}
+}
+</style>
+</head>
+<body>
+<div id="app"><p class="empty">TFT 제작 일지를 여는 중…</p></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+/* ===== Supabase 설정 =====
+   SUPABASE-설정.md 순서대로 프로젝트를 만든 뒤 아래 두 값을 채우세요.
+   비워 두면 각 기기 브라우저에만 저장됩니다. (anonKey는 공개돼도 되는 키입니다. service_role 키는 절대 넣지 마세요.) */
+window.TFT_CONFIG = {
+  url: '',          // 예: 'https://abcdefgh.supabase.co'
+  anonKey: '',      // 예: 'eyJhbGciOi...' (Project API keys → anon public)
+  teamEmail: 'team@tft-log.app'  // Supabase에 만든 팀 계정 이메일 (팀 비밀번호는 여기 적지 않음)
+};
+</script>
+<script>
+(() => {
+const app = document.getElementById('app');
+const SECTIONS = ['준비', '채널층', '소스·드레인', '기타'];
+const TYPE_LABEL = {
+  basic: '일반 (진행 여부 · 일시)',
+  oven: '오븐 · 열처리 (시작/종료 · 온도)',
+  timed: '시간 기록 (분/초, Develop·Lift-off 방식)',
+  sputter: '스퍼터링 (증착 행)'
+};
+const T = (sec, name, type, fixed = [], extra = {}) => ({ sec, name, type, fixed: fixed.map(([k, v, u]) => ({ k, v: String(v), u })), ...extra });
+const BILAYER = [
+  T('준비', '웨이퍼 다이싱', 'basic'),
+  T('준비', '세정', 'basic'),
+  T('준비', '세정 후 오븐', 'oven'),
+  T('채널층', 'PR 코팅', 'basic'),
+  T('채널층', 'Soft bake', 'basic', [['온도', 100, '℃'], ['시간', 3, '분']]),
+  T('채널층', '1차 노광', 'basic', [['장비', '마스크 얼라이너', ''], ['노광', 10, '초']]),
+  T('채널층', 'Bake', 'basic', [['온도', 120, '℃'], ['시간', 3, '분']]),
+  T('채널층', '2차 노광', 'basic', [['노광', 15, '초']]),
+  T('채널층', 'Develop', 'timed'),
+  T('채널층', '스퍼터링', 'sputter', [], { mats: ['IGO', 'IGZO'] }),
+  T('채널층', 'Lift-off', 'timed'),
+  T('채널층', '오븐 건조', 'oven'),
+  T('채널층', '열처리', 'oven'),
+  T('소스·드레인', 'PR 코팅', 'basic'),
+  T('소스·드레인', 'Soft bake', 'basic', [['온도', 100, '℃'], ['시간', 3, '분']]),
+  T('소스·드레인', '1차 노광', 'basic', [['노광', 10, '초']]),
+  T('소스·드레인', 'Bake', 'basic', [['온도', 120, '℃'], ['시간', 3, '분']]),
+  T('소스·드레인', '2차 노광', 'basic', [['노광', 15, '초']]),
+  T('소스·드레인', 'Develop', 'timed'),
+  T('소스·드레인', '스퍼터링', 'sputter', [], { mats: ['ITO'] }),
+  T('소스·드레인', 'Lift-off', 'timed'),
+  T('소스·드레인', '오븐', 'oven'),
+];
+
+const S = {
+  db: null, user: null, me: null, canWrite: true, phase: 'loading', err: '',
+  runs: {}, samples: {}, records: {}, got: new Set(),
+  view: 'home', runId: null, tab: null, open: new Set(), drafts: {},
+  ui: { nrTpl: true, nrCount: 2 }, names: {}, asked: new Set(), busy: '', toast: '', scrollTo: null
+};
+try {
+  const saved = JSON.parse(localStorage.getItem('tft-log-view') || '{}');
+  if (saved.runId) { S.view = 'run'; S.runId = saved.runId; S.tab = saved.tab || null; }
+} catch (e) {}
+function remember() {
+  try { localStorage.setItem('tft-log-view', JSON.stringify({ runId: S.view === 'run' ? S.runId : null, tab: S.tab })); } catch (e) {}
+}
+
+/* ---------- helpers ---------- */
+const now = () => Date.now();
+const uid = () => now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clone = o => JSON.parse(JSON.stringify(o ?? null));
+const DOW = '일월화수목금토';
+const p2 = n => String(n).padStart(2, '0');
+function fmtD(d) { if (!d) return ''; const x = new Date(d + 'T00:00'); if (isNaN(x)) return d; return `${x.getMonth() + 1}/${x.getDate()}(${DOW[x.getDay()]})`; }
+function fmtDT(o) { if (!o) return ''; if (!o.d) return o.t || ''; return fmtD(o.d) + (o.t ? ' ' + o.t : ''); }
+function toDate(o) { if (!o || !o.d || !o.t) return null; const x = new Date(o.d + 'T' + o.t); return isNaN(x) ? null : x; }
+function fmtMin(min) {
+  min = Math.round(min); const h = Math.floor(min / 60), m = min % 60;
+  let s = h ? `${h}시간 ${m}분` : `${m}분`;
+  if (h >= 24) s += ` (${Math.floor(h / 24)}일 ${h % 24}시간)`;
+  return s;
+}
+function ovenSpan(r) { const a = toDate(r.start), b = toDate(r.end); if (!a || !b) return null; return (b - a) / 60000; }
+function fmtMS(m, s) { m = String(m ?? '').trim(); s = String(s ?? '').trim(); if (!m && !s) return ''; return (m ? m + '분' : '') + (m && s ? ' ' : '') + (s ? s + '초' : ''); }
+function stamp(ts) { if (!ts) return ''; const x = new Date(ts); return `${x.getMonth() + 1}/${x.getDate()} ${p2(x.getHours())}:${p2(x.getMinutes())}`; }
+function nowDT() { const x = new Date(); return { d: `${x.getFullYear()}-${p2(x.getMonth() + 1)}-${p2(x.getDate())}`, t: `${p2(x.getHours())}:${p2(x.getMinutes())}` }; }
+const title = r => (!r.sec || r.sec === '준비' || r.sec === '기타') ? r.name : `${r.sec} ${r.name}`;
+function setPath(obj, path, val) {
+  const ks = path.split('.'); let o = obj;
+  for (let i = 0; i < ks.length - 1; i++) { if (o[ks[i]] == null || typeof o[ks[i]] !== 'object') o[ks[i]] = {}; o = o[ks[i]]; }
+  o[ks[ks.length - 1]] = val;
+}
+const newRow = mat => ({ mat: mat || '', power: '', gases: [{ name: '', sccm: '' }], ratio: '', m: '', s: '' });
+function newRecord(t, runId, sampleIds) {
+  const ts = now();
+  return {
+    runId, sec: t.sec, name: t.name, type: t.type, sampleIds: [...sampleIds], status: '',
+    at: { d: '', t: '' }, start: { d: '', t: '' }, end: { d: '', t: '' }, temp: '', dur: { m: '', s: '' },
+    fixed: clone(t.fixed || []), rows: t.type === 'sputter' ? (t.mats && t.mats.length ? t.mats : ['']).map(newRow) : [],
+    custom: [], note: '', createdAt: ts, updatedAt: ts, updatedBy: S.me || null
+  };
+}
+function hasData(r) {
+  return !!(r.at?.d || r.at?.t || r.start?.d || r.end?.d || r.temp || r.dur?.m || r.dur?.s || r.note ||
+    (r.rows || []).some(x => x.power || x.m || x.s || x.ratio || (x.gases || []).some(g => g.name || g.sccm)) ||
+    (r.custom || []).some(c => c.value !== '' && c.value != null));
+}
+function stateOf(r) {
+  if (r.status === 'skip') return 'skip';
+  if (r.status === 'done') return 'done';
+  if (r.type === 'oven' && r.start?.d && !r.end?.d) return 'run';
+  return hasData(r) ? 'part' : 'none';
+}
+const PILL = { done: '완료', skip: '생략', run: '진행 중', part: '기록 중' };
+const pill = st => PILL[st] ? `<span class="pill ${st}">${PILL[st]}</span>` : '';
+
+const runSamples = runId => Object.entries(S.samples).filter(([, s]) => s.runId === runId)
+  .map(([id, s]) => ({ id, ...s })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.name).localeCompare(String(b.name)));
+const visibleSteps = s => (s.stepIds || []).filter(id => S.records[id]);
+const sName = sid => S.samples[sid]?.name || '?';
+function badges(ids) {
+  const order = runSamples(S.runId).map(s => s.id);
+  return [...(ids || [])].sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(id => `<span class="sb">${esc(sName(id))}</span>`).join('');
+}
+function progress(s) {
+  const ids = visibleSteps(s); const d = ids.filter(id => ['done', 'skip'].includes(S.records[id].status)).length;
+  return { done: d, total: ids.length };
+}
+function ensureDraft(rid) {
+  if (!S.drafts[rid] && S.records[rid]) S.drafts[rid] = { data: clone(S.records[rid]), dirty: false, base: S.records[rid].updatedAt, stale: false };
+  return S.drafts[rid];
+}
+function syncDrafts() {
+  if (!S.got.has('records')) return;
+  for (const rid of Object.keys(S.drafts)) {
+    const rec = S.records[rid], dr = S.drafts[rid];
+    if (!rec) { if (!dr.pending) { delete S.drafts[rid]; S.open.delete(rid); } continue; }
+    dr.pending = false;
+    if (rec.updatedAt !== dr.base) {
+      if (dr.dirty) dr.stale = true;
+      else { dr.data = clone(rec); dr.base = rec.updatedAt; dr.stale = false; }
+    }
+  }
+}
+function matchStep(r, rid, sid) {
+  const sm = S.samples[sid];
+  return (sm?.stepIds || []).find(x => x !== rid && S.records[x] && S.records[x].sec === r.sec && S.records[x].name === r.name) || null;
+}
+
+/* ---------- writes ---------- */
+function errMsg(e) {
+  const c = e && e.code;
+  if (c === 'auth') return '로그인이 만료되었거나 권한이 없습니다. 새로 고침한 뒤 팀 비밀번호를 다시 입력해 주세요.';
+  if (c === 'invalid_argument' && S.cloud) return '저장하지 못했습니다. 다른 조원이 방금 이 항목을 삭제했을 수 있습니다. 새로 고침해 주세요.';
+  if (c === 'invalid_argument') return '저장하지 못했습니다. 이 페이지에 기록할 권한이 없거나 입력 형식이 잘못되었습니다.';
+  if (c === 'quota_exceeded' && S.local) return '이 기기의 저장 공간이 가득 찼습니다. 백업을 내려받은 뒤 쓰지 않는 차수를 삭제해 주세요.';
+  if (c === 'quota_exceeded') return '저장 공간이 가득 찼습니다. 쓰지 않는 차수를 삭제한 뒤 다시 시도해 주세요.';
+  if (c === 'resource_exhausted') return '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+  if (c === 'revoked' || c === 'not_granted') return '이 페이지의 접근 권한이 바뀌었습니다. 새로 고침해 주세요.';
+  return '연결이 불안정해 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+}
+async function busy(label, fn) {
+  S.busy = label; schedule();
+  try { return await fn(); } finally { S.busy = ''; schedule(); }
+}
+async function chunks(list, fn, n = 6) { for (let i = 0; i < list.length; i += n) await Promise.all(list.slice(i, i + n).map(fn)); }
+const D = p => S.db.doc(p);
+
+async function createSample(runId, name, tpl, createdAt) {
+  const sid = uid(); const stepIds = []; const recs = [];
+  if (tpl) for (const t of BILAYER) { const rid = uid(); stepIds.push(rid); recs.push([rid, newRecord(t, runId, [sid])]); }
+  await chunks(recs, ([rid, r]) => D('records/' + rid).set(r));
+  await D('samples/' + sid).set({ runId, name, createdAt: createdAt || now(), stepIds });
+  return sid;
+}
+async function createRun() {
+  const name = (S.ui.nrName || '').trim();
+  if (!name) { toast('차수 이름을 입력해 주세요. 예: 4차'); return; }
+  const n = S.ui.nrCount || 1, tpl = S.ui.nrTpl !== false;
+  let runId, first;
+  await busy(`${name} 만드는 중…`, async () => {
+    runId = uid(); const t = now();
+    await D('runs/' + runId).set({ name, createdAt: t });
+    for (let k = 1; k <= n; k++) { const sid = await createSample(runId, `(${k})`, tpl, t + k); first = first || sid; }
+  });
+  S.view = 'run'; S.runId = runId; S.tab = first || null; S.open.clear();
+  S.ui = { nrTpl: true, nrCount: 2 }; remember(); window.scrollTo(0, 0);
+  toast(`${name}을 만들었습니다`);
+}
+async function addSample() {
+  const name = (S.ui.snName || '').trim();
+  if (!name) { toast('샘플 이름을 입력해 주세요. 예: (3)'); return; }
+  let sid;
+  await busy('샘플 추가 중…', async () => { sid = await createSample(S.runId, name, S.ui.snTpl !== false, now()); });
+  S.ui.sn = false; S.tab = sid; remember();
+}
+async function save(rid) {
+  const dr = S.drafts[rid], rec = S.records[rid]; if (!dr || !rec) return;
+  const t = now();
+  const data = { ...clone(dr.data), sampleIds: [...(rec.sampleIds || [])], runId: rec.runId, updatedAt: t, updatedBy: S.me || null };
+  await D('records/' + rid).set(data);
+  dr.data = clone(data); dr.dirty = false; dr.stale = false; dr.base = t;
+  toast((rec.sampleIds || []).length > 1 ? `저장했습니다 · ${(rec.sampleIds || []).map(sName).join(' ')}에 반영` : '저장했습니다');
+}
+async function splitRec(rid, sid) {
+  const r = S.records[rid]; if (!r) return;
+  const dr = S.drafts[rid];
+  const base = dr && dr.dirty ? dr.data : r;
+  const nid = uid(), t = now();
+  const nrec = { ...clone(base), sampleIds: [sid], runId: r.runId, createdAt: t, updatedAt: t, updatedBy: S.me || null };
+  await busy('이 샘플의 기록을 분리하는 중…', async () => {
+    await D('records/' + nid).set(nrec);
+    const sm = S.samples[sid];
+    await D('samples/' + sid).update({ stepIds: (sm.stepIds || []).map(x => x === rid ? nid : x) });
+    await D('records/' + rid).update({ sampleIds: (r.sampleIds || []).filter(x => x !== sid) });
+  });
+  S.open.delete(rid); delete S.drafts[rid];
+  S.open.add(nid); S.drafts[nid] = { data: clone(nrec), dirty: false, base: t, stale: false, pending: true };
+  toast(`${sName(sid)}만의 기록으로 따로 저장했습니다. 다른 샘플의 기록은 그대로입니다.`);
+}
+async function detach(rid, sid) {
+  const r = S.records[rid]; if (!r) return;
+  const left = (r.sampleIds || []).filter(x => x !== sid);
+  if (left.length) await D('records/' + rid).update({ sampleIds: left });
+  else { await D('records/' + rid).delete(); delete S.drafts[rid]; S.open.delete(rid); }
+}
+async function linkRec(rid, targets) {
+  const r = S.records[rid]; if (!r) return;
+  if (!targets || !targets.length) { toast('함께 진행한 샘플을 하나 이상 선택해 주세요'); return; }
+  await busy('공통 작업으로 연결하는 중…', async () => {
+    const all = new Set(r.sampleIds || []);
+    for (const s of targets) {
+      if (all.has(s)) continue; const sm = S.samples[s]; if (!sm) continue;
+      const m = matchStep(r, rid, s);
+      if (m) {
+        await D('samples/' + s).update({ stepIds: (sm.stepIds || []).map(x => x === m ? rid : x) });
+        await detach(m, s);
+      } else {
+        await D('samples/' + s).update({ stepIds: [...(sm.stepIds || []), rid] });
+      }
+      all.add(s);
+    }
+    await D('records/' + rid).update({ sampleIds: [...all] });
+  });
+  S.ui.link = null; S.ui.linkSel = [];
+  toast('공통 작업으로 연결했습니다');
+}
+async function removeStep(rid, sid) {
+  await busy('삭제하는 중…', async () => {
+    const sm = S.samples[sid];
+    await D('samples/' + sid).update({ stepIds: (sm.stepIds || []).filter(x => x !== rid) });
+    await detach(rid, sid);
+  });
+  S.open.delete(rid); S.ui.confirm = null;
+}
+async function move(rid, sid, dir) {
+  const sm = S.samples[sid]; if (!sm) return;
+  const vis = visibleSteps(sm); const i = vis.indexOf(rid), j = i + dir;
+  if (i < 0 || j < 0 || j >= vis.length) return;
+  const other = vis[j]; const ids = [...sm.stepIds];
+  const a = ids.indexOf(rid), b = ids.indexOf(other);
+  [ids[a], ids[b]] = [ids[b], ids[a]];
+  await D('samples/' + sid).update({ stepIds: ids });
+  S.scrollTo = rid;
+}
+async function addStep(sid) {
+  const u = S.ui; const name = (u.asName || '').trim();
+  if (!name) { toast('공정명을 입력해 주세요'); return; }
+  const sids = (u.asS && u.asS.length) ? u.asS : [sid];
+  const type = u.asType || 'basic', sec = u.asSec || '기타';
+  const rec = newRecord({ sec, name, type, fixed: [], mats: type === 'sputter' ? [''] : [] }, S.runId, sids);
+  const rid = uid();
+  const anchorId = u.asPos && u.asPos !== 'end' ? u.asPos : null;
+  const anchor = anchorId && S.records[anchorId];
+  await busy('공정 단계 추가 중…', async () => {
+    await D('records/' + rid).set(rec);
+    for (const s of sids) {
+      const sm = S.samples[s]; if (!sm) continue;
+      const ids = [...(sm.stepIds || [])];
+      let pos = -1;
+      if (anchor) {
+        pos = ids.indexOf(anchorId);
+        if (pos < 0) pos = ids.findIndex(x => S.records[x] && S.records[x].sec === anchor.sec && S.records[x].name === anchor.name);
+      }
+      if (pos < 0) ids.push(rid); else ids.splice(pos + 1, 0, rid);
+      await D('samples/' + s).update({ stepIds: ids });
+    }
+  });
+  S.ui.as = false; S.open.add(rid);
+  S.drafts[rid] = { data: clone(rec), dirty: false, base: rec.updatedAt, stale: false, pending: true };
+  S.scrollTo = rid;
+}
+async function delSample(sid) {
+  const sm = S.samples[sid]; if (!sm) return;
+  await busy('샘플 삭제 중…', async () => {
+    await chunks(sm.stepIds || [], rid => detach(rid, sid));
+    await D('samples/' + sid).delete();
+  });
+  S.tab = null; S.ui.confirm = null; remember();
+}
+async function delRun(runId) {
+  await busy('차수 삭제 중…', async () => {
+    const recs = Object.keys(S.records).filter(id => S.records[id].runId === runId);
+    await chunks(recs, id => D('records/' + id).delete());
+    await chunks(Object.keys(S.samples).filter(id => S.samples[id].runId === runId), id => D('samples/' + id).delete());
+    await D('runs/' + runId).delete();
+  });
+  S.view = 'home'; S.runId = null; S.ui = { nrTpl: true, nrCount: 2 }; remember();
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) { S.toast = msg; schedule(); clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ''; schedule(); }, 3200); }
+
+/* ---------- render ---------- */
+let queued = false, composing = false, held = false;
+function schedule() {
+  if (queued) return; queued = true;
+  requestAnimationFrame(() => { queued = false; if (composing) { held = true; return; } render(); });
+}
+app.addEventListener('compositionstart', () => { composing = true; });
+app.addEventListener('compositionend', () => { composing = false; if (held) { held = false; schedule(); } });
+
+function syncBadge() {
+  if (S.local) return `<span class="sync lag"><i></i>이 기기에만 저장</span>`;
+  if (S.phase === 'ready') return `<span class="sync live"><i></i>조원과 실시간 공유</span>`;
+  if (S.phase === 'slow') return `<span class="sync lag"><i></i>연결 지연 · 최신이 아닐 수 있음</span>`;
+  if (S.phase === 'loading') return `<span class="sync"><i></i>불러오는 중</span>`;
+  return '';
+}
+
+function render() {
+  const a = document.activeElement; const fid = a && a.id && app.contains(a) ? a.id : null;
+  let ss = null, se = null; try { ss = a.selectionStart; se = a.selectionEnd; } catch (e) {}
+  if (S.view === 'run' && !S.runs[S.runId] && S.got.has('runs')) { S.view = 'home'; S.runId = null; remember(); }
+  let h = S.authNeed ? loginView() : (S.view === 'run' && S.runs[S.runId]) ? runView() : homeView();
+  if (S.busy) h += `<div class="busy" role="status">${esc(S.busy)}</div>`;
+  else if (S.toast) h += `<div class="toast" role="status">${esc(S.toast)}</div>`;
+  app.innerHTML = h;
+  document.body.classList.toggle('ro', !S.canWrite);
+  if (fid) { const el = document.getElementById(fid); if (el) { el.focus({ preventScroll: true }); try { if (ss != null) el.setSelectionRange(ss, se); } catch (e) {} } }
+  if (S.scrollTo) { const el = document.getElementById('c-' + S.scrollTo); if (el) { el.scrollIntoView({ block: 'start' }); S.scrollTo = null; } }
+  const ids = [...S.open].map(id => S.records[id]?.updatedBy).filter(Boolean);
+  resolveNames(ids);
+}
+async function resolveNames(ids) {
+  const need = ids.filter(id => !S.asked.has(id));
+  if (!need.length || !S.user || !S.user.profiles) return;
+  need.forEach(i => S.asked.add(i));
+  try { const ps = await S.user.profiles(need); for (const id of need) S.names[id] = (ps && ps[id] && ps[id].name) || ''; schedule(); } catch (e) {}
+}
+
+function statusNotices() {
+  if (S.phase === 'nodb') return `<div class="notice warn">기록을 불러오고 저장하려면 claude.ai에 로그인한 상태로 이 페이지를 열어 주세요.</div>`;
+  if (S.phase === 'error') return `<div class="notice warn">기록 저장소에 연결하지 못했습니다${S.err ? ` (${esc(S.err)})` : ''}. 페이지를 새로 고침해 주세요.</div>`;
+  if (!S.canWrite) return `<div class="notice">보기 전용입니다. 기록을 추가·수정하려면 페이지 소유자에게 편집(Contributor 이상) 권한을 요청하세요.</div>`;
+  return '';
+}
+
+function homeView() {
+  const runs = Object.entries(S.runs).map(([id, r]) => ({ id, ...r })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  let h = `<header class="top"><div class="brand"><span class="mark" aria-hidden="true"></span>TFT 제작 일지</div>${syncBadge()}</header>`;
+  h += `<div class="home-stack">`;
+  h += statusNotices();
+  if (S.local) h += backupPanel();
+  const ready = S.got.has('runs');
+  if (!runs.length) {
+    h += `<div class="hello"><h1>제작 차수를 만들고 기록을 시작하세요</h1><p>차수와 샘플 수를 정하면 이중층 기본 공정 22단계가 샘플마다 준비됩니다. 모르는 항목은 비워 두고, 확인된 내용만 적어도 저장됩니다.</p></div>`;
+    if (!ready && S.phase === 'loading') h += `<p class="empty">저장된 차수를 불러오는 중…</p>`;
+    else if (S.db) h += newRunForm(true);
+  } else {
+    h += `<div class="sect">제작 차수</div><div class="runs">`;
+    for (const r of runs) {
+      const ss = runSamples(r.id);
+      let last = 0; for (const rec of Object.values(S.records)) if (rec.runId === r.id && rec.updatedAt > last && hasData(rec)) last = rec.updatedAt;
+      h += `<button class="runcard" data-act="openRun" data-id="${r.id}">
+        <span class="rc-top"><b>${esc(r.name)}</b><span>샘플 ${ss.length}개${last ? ` · 최근 기록 ${stamp(last)}` : ''}</span></span>
+        ${ss.length ? `<span class="rc-samples">${ss.map(s => { const p = progress(s); return `<span class="sbar">${esc(s.name)} <span class="mono">${p.done}/${p.total}</span></span>`; }).join('')}</span>` : ''}
+      </button>`;
+    }
+    h += `</div>`;
+    if (S.db) h += S.ui.nr ? newRunForm(false) : `<button class="add big w" data-act="nrOpen">+ 새 제작 차수</button>`;
+  }
+  if (S.cloud && S.phase === 'ready') h += `<div class="sect">팀 저장소 · 이 기기</div>` + backupPanel();
+  h += `</div>`;
+  return h;
+}
+function newRunForm(first) {
+  const n = S.ui.nrCount || 1;
+  return `<section class="panel w" aria-label="새 제작 차수">
+    ${first ? '' : '<h2>새 제작 차수</h2>'}
+    <label class="fl" for="nr-name">차수 이름<input id="nr-name" data-ui="nrName" data-enter="createRun" value="${esc(S.ui.nrName || '')}" placeholder="예: 4차" autocomplete="off"></label>
+    <div class="fl"><span id="nr-count-l">샘플 수</span>
+      <div class="stepper" role="group" aria-labelledby="nr-count-l">
+        <button type="button" data-act="nrDec" aria-label="샘플 수 줄이기">−</button><output class="mono">${n}</output><button type="button" data-act="nrInc" aria-label="샘플 수 늘리기">+</button>
+      </div>
+      <span style="font-weight:400">샘플 이름은 (1)${n > 1 ? `부터 (${n})까지` : ''} 자동으로 붙고, 나중에 바꿀 수 있습니다.</span>
+    </div>
+    <label class="check"><input type="checkbox" id="nr-tpl" data-ui="nrTpl" ${S.ui.nrTpl !== false ? 'checked' : ''}><span>이중층 기본 공정 22단계로 시작<small>준비 3 · 채널층 10 · 소스·드레인 9단계. 끄면 빈 샘플로 시작합니다.</small></span></label>
+    <div class="actions"><button class="primary" data-act="createRun">차수 만들고 기록 시작</button>${first ? '' : '<button class="ghost" data-act="nrCancel">취소</button>'}</div>
+  </section>`;
+}
+
+function runView() {
+  const run = S.runs[S.runId]; const ss = runSamples(S.runId);
+  if (S.tab !== 'tl' && !ss.find(s => s.id === S.tab)) S.tab = ss[0]?.id || null;
+  let h = `<div class="stick"><header class="top">
+    <button class="back" data-act="home" aria-label="차수 목록으로">← 목록</button>
+    <div class="runhead">
+      ${S.ui.rn ? `<div class="inline-edit"><input id="rn-name" data-ui="rnName" data-enter="rnSave" value="${esc(S.ui.rnName ?? run.name)}" aria-label="차수 이름"><button class="primary sm" data-act="rnSave">저장</button><button class="ghost sm" data-act="rnCancel">취소</button></div>`
+      : `<h1 class="runname">${esc(run.name)}</h1>${syncBadge().replace('class="sync', 'class="sync dotonly')}<button class="ghost sm w" data-act="runMenu" aria-expanded="${!!S.ui.runMenu}" style="margin-left:auto">차수 관리</button>`}
+    </div>
+  </header>`;
+  if (S.ui.runMenu && !S.ui.rn) {
+    h += `<div class="runmenu">` + (S.ui.confirm === 'run'
+      ? `<div class="confirm"><span>${esc(run.name)}의 샘플 ${ss.length}개와 모든 공정 기록을 삭제합니다. 되돌릴 수 없습니다.</span><button class="primary sm" data-act="runDel" style="background:var(--warn);border-color:var(--warn)">삭제</button><button class="ghost sm" data-act="cancelConfirm">취소</button></div>`
+      : `<button class="ghost sm" data-act="rnStart">이름 변경</button><button class="ghost sm danger" data-act="ask" data-k="run">차수 삭제</button>`) + `</div>`;
+  }
+  h += `<nav class="tabs" aria-label="샘플">`;
+  for (const s of ss) { const p = progress(s); h += `<button class="tab ${S.tab === s.id ? 'on' : ''}" data-act="tab" data-id="${s.id}" aria-current="${S.tab === s.id}">${esc(s.name)}<small>${p.done}/${p.total}</small></button>`; }
+  h += `<button class="tab dash w" data-act="snOpen">+ 샘플</button>`;
+  h += `<button class="tab tl ${S.tab === 'tl' ? 'on' : ''}" data-act="tab" data-id="tl">타임라인</button></nav></div>`;
+  h += statusNotices();
+  if (S.ui.sn) {
+    h += `<section class="panel w" style="margin-top:12px" aria-label="샘플 추가"><h3>샘플 추가</h3>
+      <label class="fl" for="sn-name">샘플 이름<input id="sn-name" data-ui="snName" data-enter="snGo" value="${esc(S.ui.snName ?? '')}" autocomplete="off"></label>
+      <label class="check"><input type="checkbox" id="sn-tpl" data-ui="snTpl" ${S.ui.snTpl !== false ? 'checked' : ''}><span>이중층 기본 공정 22단계로 시작</span></label>
+      <div class="actions"><button class="primary" data-act="snGo">샘플 추가</button><button class="ghost" data-act="snCancel">취소</button></div></section>`;
+  }
+  if (S.tab === 'tl') h += timelineView(ss);
+  else if (!ss.length) h += `<p class="empty">아직 샘플이 없습니다. 위의 <b>+ 샘플</b>로 첫 샘플을 추가하세요.</p>`;
+  else h += sampleView(S.samples[S.tab], S.tab);
+  return h;
+}
+
+function sampleView(sm, sid) {
+  const steps = visibleSteps(sm); const p = progress(sm);
+  let h = `<div class="samplebar">`;
+  if (S.ui.smr === sid) {
+    h += `<div class="inline-edit"><input id="sm-name" data-ui="smName" data-enter="smSave" value="${esc(S.ui.smName ?? sm.name)}" aria-label="샘플 이름"><button class="primary sm" data-act="smSave">저장</button><button class="ghost sm" data-act="smCancel">취소</button></div>`;
+  } else {
+    h += `<h2>샘플 ${esc(sm.name)}</h2>
+      <div class="prog"><span class="track"><i style="width:${p.total ? Math.round(p.done / p.total * 100) : 0}%"></i></span><span class="mono">${p.done}/${p.total} 완료</span></div>
+      <button class="ghost sm w" data-act="smStart">이름 변경</button><button class="ghost sm danger w" data-act="ask" data-k="sm">삭제</button>`;
+  }
+  h += `</div>`;
+  if (S.ui.confirm === 'sm') {
+    h += `<div class="confirm"><span>샘플 ${esc(sm.name)}과 이 샘플만의 기록을 삭제합니다. 다른 샘플과 공통인 기록은 그 샘플에 남습니다.</span><button class="primary sm" data-act="smDel" style="background:var(--warn);border-color:var(--warn)">삭제</button><button class="ghost sm" data-act="cancelConfirm">취소</button></div>`;
+  }
+  if (!steps.length) h += `<p class="empty">공정 단계가 없습니다. 아래에서 첫 단계를 추가하세요.</p>`;
+  let last = null, secN = 0;
+  h += `<div class="steps">`;
+  steps.forEach((rid, i) => {
+    const r = S.records[rid];
+    if (r.sec !== last) { secN++; last = r.sec; h += `<div class="stage"><span class="stage-n">${secN}</span>${esc(r.sec || '기타')}</div>`; }
+    h += card(rid, r, i, sid, steps.length);
+  });
+  h += `</div>`;
+  h += addStepView(sid, steps);
+  return h;
+}
+
+function summary(r) {
+  const fx = (r.fixed || []).filter(f => String(f.v ?? '') !== '').map(f => esc(f.v + (f.u || '')));
+  const bits = [];
+  if (r.type === 'oven') {
+    if (r.start?.d) {
+      let s = fmtDT(r.start);
+      if (r.end?.d) s += ' → ' + (r.end.d === r.start.d && r.end.t ? r.end.t : fmtDT(r.end)); else s += ' 시작';
+      bits.push(esc(s));
+      const sp = ovenSpan(r); if (sp != null && sp >= 0) bits.push(`<b>${fmtMin(sp)}</b>`);
+    }
+    if (r.temp) bits.push(esc(r.temp) + '℃');
+  } else {
+    if (r.at?.d || r.at?.t) bits.push(esc(fmtDT(r.at)));
+    if (r.type === 'timed') { const t = fmtMS(r.dur?.m, r.dur?.s); if (t) bits.push(`<b>${esc(t)}</b>`); }
+    if (r.type === 'sputter') for (const x of r.rows || []) {
+      const p = [x.mat || '재료 미기록']; if (x.power) p.push(x.power + 'W'); const t = fmtMS(x.m, x.s); if (t) p.push(t);
+      bits.push(esc(p.join(' ')));
+    }
+  }
+  for (const c of r.custom || []) if (c.value !== '' && c.value != null) bits.push(esc(`${c.name} ${c.value}${c.unit || ''}`));
+  return { fx, bits };
+}
+
+function card(rid, r, i, sid, count) {
+  const open = S.open.has(rid); const dr = S.drafts[rid]; const dirty = !!(dr && dr.dirty);
+  const st = stateOf(r); const { fx, bits } = summary(r);
+  const shared = (r.sampleIds || []).length > 1;
+  return `<article class="card st-${st} ${open ? 'open' : ''}" id="c-${rid}">
+    <button class="card-h" data-act="toggle" data-rid="${rid}" aria-expanded="${open}">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="ch-main">
+        <span class="ch-top"><span class="idx mono">${p2(i + 1)}</span><span class="ttl">${esc(title(r))}</span>${pill(st)}<span class="pill unsaved" id="u-${rid}" ${dirty ? '' : 'hidden'}>저장 안 됨</span></span>
+        ${(fx.length || bits.length) ? `<span class="ch-sum">${fx.map(x => `<span class="fx">${x}</span>`).join('')}${bits.length ? `<span>${bits.join(' · ')}</span>` : ''}</span>` : ''}
+        ${shared ? `<span class="ch-shared">공통 작업 ${badges(r.sampleIds)}</span>` : ''}
+        ${r.note ? `<span class="ch-note">${esc(r.note)}</span>` : ''}
+      </span>
+      <span class="chev" aria-hidden="true"></span>
+    </button>
+    ${open ? cardBody(rid, r, i, sid, count) : ''}
+  </article>`;
+}
+
+const fidOf = (rid, f) => 'f-' + rid + '-' + f.replace(/\./g, '-');
+function inp(rid, f, val, o = {}) {
+  return `<input id="${fidOf(rid, f)}" type="${o.type || 'text'}" ${o.mode ? `inputmode="${o.mode}"` : ''} data-rid="${rid}" data-f="${f}" ${o.rr ? 'data-rr="1"' : ''} value="${esc(val)}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.al ? `aria-label="${esc(o.al)}"` : ''} autocomplete="off">`;
+}
+function dtField(rid, key, o, label) {
+  return `<div class="fld"><span class="lbl">${label}</span><div class="dt">
+    ${inp(rid, key + '.d', o?.d || '', { type: 'date', rr: true, al: label + ' 날짜' })}
+    ${inp(rid, key + '.t', o?.t || '', { type: 'time', rr: true, al: label + ' 시각' })}
+    <button class="ghost sm" data-act="nowdt" data-rid="${rid}" data-k="${key}">지금</button>
+    ${(o?.d || o?.t) ? `<button class="ghost sm" data-act="cleardt" data-rid="${rid}" data-k="${key}" aria-label="${label} 지우기">지우기</button>` : ''}
+  </div></div>`;
+}
+function cardBody(rid, r, i, sid, count) {
+  const dr = ensureDraft(rid); if (!dr) return '';
+  const d = dr.data; const shared = (r.sampleIds || []).length > 1;
+  let h = `<div class="card-b">`;
+  if (dr.stale) h += `<div class="stale"><p>다른 조원이 이 기록을 방금 저장했습니다. 지금 저장하면 그 내용을 덮어씁니다.</p><div class="actions"><button class="ghost sm" data-act="discard" data-rid="${rid}">최신 내용 불러오기 (내 수정 버림)</button></div></div>`;
+  if (shared) {
+    h += `<div class="shared"><p><b>공통 작업</b> · 이 기록은 ${badges(r.sampleIds)} 에 함께 표시됩니다. <b>저장</b>하면 모든 샘플에 반영됩니다.</p>
+      <div class="actions w"><button class="ghost sm" data-act="split" data-rid="${rid}" data-sid="${sid}" title="현재 수정 내용을 이 샘플에만 저장하고 공통 기록에서 분리합니다">${esc(sName(sid))}에만 따로 저장</button></div></div>`;
+  }
+  h += `<fieldset ${S.canWrite ? '' : 'disabled'}>`;
+  const opts = [['', '미기록'], ['done', '완료'], ['skip', '생략']];
+  h += `<div class="fld"><span class="lbl">진행 여부</span><div class="seg" role="group" aria-label="진행 여부">${opts.map(([v, l]) => `<button class="${(d.status || '') === v ? 'on' : ''}" data-act="setf" data-rid="${rid}" data-f="status" data-v="${v}" aria-pressed="${(d.status || '') === v}">${l}</button>`).join('')}</div></div>`;
+  if ((d.fixed || []).length) {
+    h += `<div class="fld"><span class="lbl">고정 조건<em>탭하면 이번 기록만 수정</em></span><div class="chips">${d.fixed.map((f, k) => S.ui.fx === rid + ':' + k
+      ? `<span class="chip edit"><small>${esc(f.k)}</small>${inp(rid, `fixed.${k}.v`, f.v, { al: f.k })}<span>${esc(f.u)}</span><button class="ghost sm" data-act="fxdone">확인</button></span>`
+      : `<button class="chip" data-act="fxedit" data-rid="${rid}" data-i="${k}"><small>${esc(f.k)}</small>${esc(f.v)}${esc(f.u)}</button>`).join('')}</div></div>`;
+  }
+  if (d.type === 'oven') {
+    h += dtField(rid, 'start', d.start, '시작') + dtField(rid, 'end', d.end, '종료');
+    h += `<div class="fld"><label class="lbl" for="${fidOf(rid, 'temp')}">온도</label><div class="unit">${inp(rid, 'temp', d.temp, { mode: 'decimal' })}<span>℃</span></div></div>`;
+    if (d.start?.d) {
+      const sp = ovenSpan(d);
+      let t, bad = false;
+      if (!d.end?.d) t = '시작만 기록됨 · 종료를 입력하면 총 소요 시간이 계산됩니다';
+      else if (sp == null) t = '시작과 종료의 시각을 모두 입력하면 소요 시간이 계산됩니다';
+      else if (sp < 0) { t = '종료가 시작보다 앞섭니다. 날짜를 확인해 주세요.'; bad = true; }
+      else t = `총 소요 시간 <b>${fmtMin(sp)}</b>${d.end.d !== d.start.d ? ' · 날짜를 넘김' : ''}`;
+      h += `<div class="durbox ${bad ? 'bad' : ''}">${t}</div>`;
+    }
+  } else {
+    h += dtField(rid, 'at', d.at, '진행 일시');
+  }
+  if (d.type === 'timed') {
+    h += `<div class="fld"><span class="lbl">진행 시간</span><div class="ms">${inp(rid, 'dur.m', d.dur?.m, { mode: 'numeric', al: '분' })}<span>분</span>${inp(rid, 'dur.s', d.dur?.s, { mode: 'numeric', al: '초' })}<span>초</span></div></div>`;
+  }
+  if (d.type === 'sputter') {
+    h += `<div class="fld"><span class="lbl">증착</span>`;
+    (d.rows || []).forEach((x, k) => {
+      h += `<div class="dep">
+        <div class="dep-h"><span class="mono">#${k + 1}</span>${inp(rid, `rows.${k}.mat`, x.mat, { ph: '재료 (예: IGZO)', al: `증착 ${k + 1} 재료` })}<button class="ghost sm" data-act="rowdel" data-rid="${rid}" data-i="${k}" aria-label="증착 ${k + 1} 삭제">삭제</button></div>
+        <div class="grid2">
+          <div class="mini">RF power<div class="unit">${inp(rid, `rows.${k}.power`, x.power, { mode: 'decimal', al: 'RF power (W)' })}<span>W</span></div></div>
+          <div class="mini">증착 시간<div class="ms">${inp(rid, `rows.${k}.m`, x.m, { mode: 'numeric', al: '증착 시간 분' })}<span>분</span>${inp(rid, `rows.${k}.s`, x.s, { mode: 'numeric', al: '증착 시간 초' })}<span>초</span></div></div>
+        </div>
+        <div class="mini">가스 · 유량
+          ${(x.gases || []).map((g, j) => `<div class="gas">${inp(rid, `rows.${k}.gases.${j}.name`, g.name, { ph: '가스 (예: Ar)', al: '가스명' })}<div class="unit">${inp(rid, `rows.${k}.gases.${j}.sccm`, g.sccm, { mode: 'decimal', al: '유량 (sccm)' })}<span>sccm</span></div><button class="icon" data-act="gasdel" data-rid="${rid}" data-i="${k}" data-j="${j}" aria-label="가스 삭제">×</button></div>`).join('')}
+          <button class="ghost sm" style="justify-self:start" data-act="gasadd" data-rid="${rid}" data-i="${k}">+ 가스</button>
+        </div>
+        <div class="mini">가스 비율 (유량 대신 적어도 됨)${inp(rid, `rows.${k}.ratio`, x.ratio, { ph: '예: Ar:O₂ = 30:1' })}</div>
+      </div>`;
+    });
+    h += `<button class="add" data-act="rowadd" data-rid="${rid}">+ 증착 행 추가</button></div>`;
+  }
+  (d.custom || []).forEach((c, k) => {
+    h += `<div class="fld"><label class="lbl" for="${fidOf(rid, `custom.${k}.value`)}">${esc(c.name)}${c.unit ? ` (${esc(c.unit)})` : ''}</label><div class="cfrow">
+      ${c.kind === 'number' ? `<div class="unit">${inp(rid, `custom.${k}.value`, c.value, { mode: 'decimal' })}<span>${esc(c.unit || '')}</span></div>` : inp(rid, `custom.${k}.value`, c.value)}
+      <button class="ghost sm" data-act="cfdel" data-rid="${rid}" data-i="${k}" aria-label="${esc(c.name)} 입력란 삭제">삭제</button></div></div>`;
+  });
+  if (S.ui.cf === rid) {
+    h += `<div class="cfform"><div class="grid2">
+      <label class="fl" for="cf-name">입력란 이름<input id="cf-name" data-ui="cfName" value="${esc(S.ui.cfName || '')}" placeholder="예: 두께"></label>
+      <label class="fl" for="cf-unit">단위<input id="cf-unit" data-ui="cfUnit" value="${esc(S.ui.cfUnit || '')}" placeholder="예: nm"></label>
+      <label class="fl" for="cf-kind">형식<select id="cf-kind" data-ui="cfKind"><option value="number" ${S.ui.cfKind !== 'text' ? 'selected' : ''}>숫자</option><option value="text" ${S.ui.cfKind === 'text' ? 'selected' : ''}>텍스트</option></select></label>
+    </div><div class="actions"><button class="primary sm" data-act="cfadd" data-rid="${rid}">입력란 추가</button><button class="ghost sm" data-act="cfcancel">취소</button></div></div>`;
+  } else {
+    h += `<button class="add" data-act="cfopen" data-rid="${rid}">+ 입력란 추가 (이름 · 단위 지정)</button>`;
+  }
+  h += `<div class="fld"><label class="lbl" for="${fidOf(rid, 'note')}">특이사항</label><textarea id="${fidOf(rid, 'note')}" data-rid="${rid}" data-f="note" rows="3" placeholder="예: 가장자리 PR 뭉침, 장비 대기 20분">${esc(d.note)}</textarea></div>`;
+  h += `</fieldset>`;
+  h += linkPanel(rid, r);
+  h += `<div class="foot">
+    <button class="primary w" id="sv-${rid}" data-act="save" data-rid="${rid}" ${dr.dirty ? '' : 'disabled'}>${shared ? '저장 (공통 기록)' : '저장'}</button>
+    <button class="ghost w" id="dc-${rid}" data-act="discard" data-rid="${rid}" ${dr.dirty ? '' : 'disabled'}>되돌리기</button>
+    <span class="sp"></span>
+    <button class="icon w" data-act="up" data-rid="${rid}" data-sid="${sid}" ${i === 0 ? 'disabled' : ''} aria-label="위로 이동">↑</button>
+    <button class="icon w" data-act="down" data-rid="${rid}" data-sid="${sid}" ${i === count - 1 ? 'disabled' : ''} aria-label="아래로 이동">↓</button>
+    <button class="ghost sm danger w" data-act="ask" data-k="rm:${rid}">삭제</button>
+    ${S.ui.confirm === 'rm:' + rid ? `<div class="confirm"><span>${shared ? `${esc(sName(sid))}에서만 이 단계를 뺍니다. 다른 샘플의 공통 기록은 남습니다.` : '이 단계와 기록을 삭제합니다.'}</span><button class="primary sm" data-act="rm" data-rid="${rid}" data-sid="${sid}" style="background:var(--warn);border-color:var(--warn)">삭제</button><button class="ghost sm" data-act="cancelConfirm">취소</button></div>` : ''}
+  </div>`;
+  const who = r.updatedBy && (S.names[r.updatedBy] || (S.user ? '' : r.updatedBy));
+  h += `<div class="meta">마지막 저장 ${stamp(r.updatedAt)}${who ? ' · ' + esc(who) : ''}</div>`;
+  h += `</div>`;
+  return h;
+}
+
+function linkPanel(rid, r) {
+  const others = runSamples(r.runId).filter(s => !(r.sampleIds || []).includes(s.id));
+  if (!others.length || !S.canWrite) return '';
+  if (S.ui.link !== rid) return `<button class="ghost sm" style="justify-self:start" data-act="linkOpen" data-rid="${rid}">+ 함께 진행한 샘플 연결</button>`;
+  const sel = S.ui.linkSel || [];
+  let h = `<div class="linkbox"><h4>같이 처리한 샘플을 선택하세요</h4>`;
+  for (const s of others) {
+    const m = matchStep(r, rid, s.id); const mr = m && S.records[m];
+    let info, warnc = false;
+    if (mr && (hasData(mr) || mr.status)) { info = `${s.name}에 이미 있는 「${title(mr)}」 기록은 삭제되고 이 공통 기록으로 바뀝니다`; warnc = true; }
+    else if (mr) info = `${s.name}의 같은 단계(비어 있음)를 이 공통 기록으로 바꿉니다`;
+    else info = `${s.name}에는 같은 단계가 없어 맨 끝에 추가됩니다`;
+    h += `<label class="check"><input type="checkbox" id="lk-${rid}-${s.id}" data-uset="linkSel" value="${s.id}" ${sel.includes(s.id) ? 'checked' : ''}><span><b>${esc(s.name)}</b><small class="${warnc ? 'warnt' : ''}">${esc(info)}</small></span></label>`;
+  }
+  h += `<div class="actions"><button class="primary sm" data-act="linkGo" data-rid="${rid}" ${sel.length ? '' : 'disabled'}>공통 작업으로 연결</button><button class="ghost sm" data-act="linkCancel">취소</button></div></div>`;
+  return h;
+}
+
+function addStepView(sid, steps) {
+  if (!S.canWrite) return '';
+  if (!S.ui.as) return `<button class="add big" data-act="asOpen">+ 공정 단계 추가</button>`;
+  const u = S.ui; const ss = runSamples(S.runId); const chosen = u.asS || [sid];
+  return `<section class="panel" style="margin-top:14px" aria-label="공정 단계 추가"><h3>공정 단계 추가</h3>
+    <div class="grid2">
+      <label class="fl" for="as-sec">구간<select id="as-sec" data-ui="asSec">${SECTIONS.map(s => `<option ${u.asSec === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+      <label class="fl" for="as-name">공정명<input id="as-name" data-ui="asName" value="${esc(u.asName || '')}" placeholder="예: UV 오존 처리" autocomplete="off"></label>
+    </div>
+    <label class="fl" for="as-type">기록 방식<select id="as-type" data-ui="asType">${Object.entries(TYPE_LABEL).map(([k, l]) => `<option value="${k}" ${u.asType === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="fl" for="as-pos">위치<select id="as-pos" data-ui="asPos"><option value="end">맨 끝</option>${steps.map((id, i) => `<option value="${id}" ${u.asPos === id ? 'selected' : ''}>${p2(i + 1)} ${esc(title(S.records[id]))} 다음</option>`).join('')}</select></label>
+    ${ss.length > 1 ? `<div class="fl"><span>함께 진행한 샘플 <span style="font-weight:400">· 여러 개 고르면 한 번만 기록하고 모두에 표시됩니다</span></span>
+      ${ss.map(s => `<label class="check"><input type="checkbox" id="as-s-${s.id}" data-uset="asS" value="${s.id}" ${chosen.includes(s.id) ? 'checked' : ''}><span>${esc(s.name)}</span></label>`).join('')}</div>` : ''}
+    <div class="actions"><button class="primary" data-act="asGo">단계 추가</button><button class="ghost" data-act="asCancel">취소</button></div>
+  </section>`;
+}
+
+function timelineView(ss) {
+  const order = ss.map(s => s.id);
+  const ev = []; let undated = 0;
+  for (const [id, r] of Object.entries(S.records)) {
+    if (r.runId !== S.runId || !(r.sampleIds || []).length) continue;
+    const when = r.type === 'oven' ? r.start : r.at;
+    if (!when || !when.d) { if (hasData(r) || r.status) undated++; continue; }
+    ev.push({ id, r, d: when.d, t: when.t || '' });
+  }
+  ev.sort((a, b) => (a.d + ' ' + (a.t || '~')).localeCompare(b.d + ' ' + (b.t || '~')));
+  let h = `<div class="samplebar"><h2>날짜별 공정 기록</h2></div>`;
+  if (!ev.length) return h + `<p class="empty">아직 날짜가 기록된 공정이 없습니다. 공정 카드를 펼쳐 진행 일시를 입력하면 여기에 시간순으로 모입니다.</p>`;
+  let day = null;
+  for (const e of ev) {
+    if (e.d !== day) { if (day) h += `</div>`; day = e.d; const x = new Date(e.d + 'T00:00'); h += `<div class="tlday">${x.getFullYear()}. ${x.getMonth() + 1}. ${x.getDate()} (${DOW[x.getDay()]})</div><div class="tl">`; }
+    const r = e.r; const st = stateOf(r); let det = [];
+    if (r.type === 'oven') {
+      if (r.end?.d) det.push('→ ' + esc(r.end.d === r.start.d && r.end.t ? r.end.t : fmtDT(r.end)));
+      const sp = ovenSpan(r); if (sp != null && sp >= 0) det.push(`<strong>${fmtMin(sp)}</strong>`); else if (!r.end?.d) det.push('진행 중 · 종료 미기록');
+      if (r.temp) det.push(esc(r.temp) + '℃');
+    } else {
+      const { fx, bits } = summary({ ...r, at: null });
+      det = [...fx.map(x => x), ...bits.map(b => b.replace(/<b>/g, '<strong>').replace(/<\/b>/g, '</strong>'))];
+    }
+    const firstS = [...r.sampleIds].sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
+    h += `<button class="tl-row ${st}" data-act="goto" data-rid="${e.id}" data-sid="${firstS}">
+      <span class="tl-t">${e.t || '--:--'}</span>
+      <span class="tl-main"><span><b>${esc(title(r))}</b> ${badges(r.sampleIds)}</span>${det.length ? `<span class="tl-d">${det.join(' · ')}</span>` : ''}</span>
+    </button>`;
+  }
+  h += `</div>`;
+  if (undated) h += `<p class="empty">진행 일시가 비어 있는 기록 ${undated}건은 타임라인에 나오지 않습니다.</p>`;
+  return h;
+}
+
+/* ---------- actions ---------- */
+const WRITE_ACTS = new Set(['createRun', 'snGo', 'save', 'split', 'linkGo', 'rm', 'up', 'down', 'asGo', 'smDel', 'runDel', 'rnSave', 'smSave']);
+const dirty = rid => { const dr = ensureDraft(rid); if (dr) dr.dirty = true; return dr; };
+const A = {
+  home() { S.view = 'home'; S.runId = null; S.ui = { nrTpl: true, nrCount: 2 }; S.open.clear(); remember(); window.scrollTo(0, 0); },
+  openRun(ds) { S.view = 'run'; S.runId = ds.id; S.tab = null; S.open.clear(); S.ui = { nrTpl: true, nrCount: 2 }; remember(); window.scrollTo(0, 0); },
+  tab(ds) { S.tab = ds.id; S.ui.as = false; S.ui.confirm = null; S.ui.smr = null; remember(); },
+  toggle(ds) { if (S.open.has(ds.rid)) S.open.delete(ds.rid); else { S.open.add(ds.rid); ensureDraft(ds.rid); } },
+  setf(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.f, ds.v); },
+  nowdt(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.k, nowDT()); },
+  cleardt(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.k, { d: '', t: '' }); },
+  fxedit(ds) { S.ui.fx = ds.rid + ':' + ds.i; },
+  fxdone() { S.ui.fx = null; },
+  rowadd(ds) { const dr = dirty(ds.rid); dr.data.rows = dr.data.rows || []; dr.data.rows.push(newRow('')); },
+  rowdel(ds) { const dr = dirty(ds.rid); dr.data.rows.splice(+ds.i, 1); },
+  gasadd(ds) { const dr = dirty(ds.rid); const row = dr.data.rows[+ds.i]; row.gases = row.gases || []; row.gases.push({ name: '', sccm: '' }); },
+  gasdel(ds) { const dr = dirty(ds.rid); dr.data.rows[+ds.i].gases.splice(+ds.j, 1); },
+  cfopen(ds) { S.ui.cf = ds.rid; S.ui.cfName = ''; S.ui.cfUnit = ''; S.ui.cfKind = 'number'; },
+  cfcancel() { S.ui.cf = null; },
+  cfadd(ds) {
+    const name = (S.ui.cfName || '').trim(); if (!name) { toast('입력란 이름을 적어 주세요'); return; }
+    const dr = dirty(ds.rid); dr.data.custom = dr.data.custom || [];
+    dr.data.custom.push({ id: uid(), name, unit: (S.ui.cfUnit || '').trim(), kind: S.ui.cfKind === 'text' ? 'text' : 'number', value: '' });
+    S.ui.cf = null;
+  },
+  cfdel(ds) { const dr = dirty(ds.rid); dr.data.custom.splice(+ds.i, 1); },
+  discard(ds) { const rec = S.records[ds.rid]; if (rec) S.drafts[ds.rid] = { data: clone(rec), dirty: false, base: rec.updatedAt, stale: false }; S.ui.fx = null; },
+  save(ds) { return save(ds.rid); },
+  split(ds) { return splitRec(ds.rid, ds.sid); },
+  linkOpen(ds) { S.ui.link = ds.rid; S.ui.linkSel = []; },
+  linkCancel() { S.ui.link = null; },
+  linkGo(ds) { return linkRec(ds.rid, S.ui.linkSel); },
+  up(ds) { return move(ds.rid, ds.sid, -1); },
+  down(ds) { return move(ds.rid, ds.sid, 1); },
+  ask(ds) { S.ui.confirm = ds.k; },
+  cancelConfirm() { S.ui.confirm = null; },
+  rm(ds) { return removeStep(ds.rid, ds.sid); },
+  asOpen() {
+    const sm = S.samples[S.tab]; const vis = sm ? visibleSteps(sm) : [];
+    const lastR = vis.length ? S.records[vis[vis.length - 1]] : null;
+    Object.assign(S.ui, { as: true, asSec: lastR && SECTIONS.includes(lastR.sec) ? lastR.sec : '채널층', asName: '', asType: 'basic', asPos: 'end', asS: [S.tab] });
+  },
+  asCancel() { S.ui.as = false; },
+  asGo() { return addStep(S.tab); },
+  nrOpen() { S.ui.nr = true; },
+  nrCancel() { S.ui.nr = false; },
+  nrInc() { S.ui.nrCount = Math.min(12, (S.ui.nrCount || 1) + 1); },
+  nrDec() { S.ui.nrCount = Math.max(1, (S.ui.nrCount || 1) - 1); },
+  createRun() { return createRun(); },
+  snOpen() { const n = runSamples(S.runId).length; S.ui.sn = true; S.ui.snName = `(${n + 1})`; S.ui.snTpl = true; },
+  snCancel() { S.ui.sn = false; },
+  snGo() { return addSample(); },
+  runMenu() { S.ui.runMenu = !S.ui.runMenu; S.ui.confirm = null; },
+  rnStart() { S.ui.rn = true; S.ui.rnName = S.runs[S.runId]?.name || ''; },
+  rnCancel() { S.ui.rn = false; },
+  async rnSave() {
+    const name = (S.ui.rnName || '').trim(); if (!name) { toast('차수 이름을 입력해 주세요'); return; }
+    await D('runs/' + S.runId).update({ name }); S.ui.rn = false; S.ui.runMenu = false;
+  },
+  runDel() { return delRun(S.runId); },
+  smStart() { S.ui.smr = S.tab; S.ui.smName = S.samples[S.tab]?.name || ''; },
+  smCancel() { S.ui.smr = null; },
+  async smSave() {
+    const name = (S.ui.smName || '').trim(); if (!name) { toast('샘플 이름을 입력해 주세요'); return; }
+    await D('samples/' + S.tab).update({ name }); S.ui.smr = null;
+  },
+  smDel() { return delSample(S.tab); },
+  goto(ds) { S.tab = ds.sid; S.open.add(ds.rid); ensureDraft(ds.rid); S.scrollTo = ds.rid; remember(); },
+};
+
+async function runAct(name, ds, el) {
+  const f = A[name]; if (!f) return;
+  if (S.busy) return;
+  if (WRITE_ACTS.has(name) && (!S.db || !S.canWrite)) { toast(S.db ? '보기 전용이라 저장할 수 없습니다' : '저장소에 연결되지 않았습니다'); return; }
+  try { await f(ds, el); }
+  catch (err) {
+    if (err && err.code === 'invalid_argument' && S.user && (await S.user.can?.('data.write')) !== true) S.canWrite = false;
+    toast(errMsg(err));
+  }
+  schedule();
+}
+app.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  e.preventDefault(); runAct(el.dataset.act, { ...el.dataset }, el);
+});
+app.addEventListener('keydown', e => {
+  const el = e.target;
+  if (e.key === 'Enter' && el.dataset && el.dataset.enter && !e.isComposing) { e.preventDefault(); runAct(el.dataset.enter, { ...el.dataset }, el); }
+});
+app.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.f && el.dataset.rid) {
+    const rid = el.dataset.rid; const dr = ensureDraft(rid); if (!dr) return;
+    setPath(dr.data, el.dataset.f, el.value);
+    if (!dr.dirty) {
+      dr.dirty = true;
+      const u = document.getElementById('u-' + rid); if (u) u.hidden = false;
+      for (const id of ['sv-', 'dc-']) { const b = document.getElementById(id + rid); if (b) b.disabled = false; }
+    }
+  } else if (el.dataset.ui) {
+    S.ui[el.dataset.ui] = el.type === 'checkbox' ? el.checked : el.value;
+  }
+});
+app.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.uset) {
+    const k = el.dataset.uset; const a = new Set(S.ui[k] || []);
+    el.checked ? a.add(el.value) : a.delete(el.value); S.ui[k] = [...a]; schedule();
+  } else if (el.dataset.ui && (el.tagName === 'SELECT' || el.type === 'checkbox')) {
+    S.ui[el.dataset.ui] = el.type === 'checkbox' ? el.checked : el.value; schedule();
+  } else if (el.dataset.rr) schedule();
+});
+
+/* ---------- this-device storage (used outside claude.ai, e.g. GitHub Pages) ---------- */
+const LKEY = 'tft-log-data', COLS = ['runs', 'samples', 'records'];
+function localStore() {
+  const blank = () => ({ runs: {}, samples: {}, records: {} });
+  const load = () => {
+    try { const d = JSON.parse(localStorage.getItem(LKEY) || '{}'); return { runs: d.runs || {}, samples: d.samples || {}, records: d.records || {} }; }
+    catch (e) { return blank(); }
+  };
+  let data = load();
+  const subs = { runs: [], samples: [], records: [] };
+  const meta = { fromCache: false, hasPendingWrites: false };
+  const snap = col => ({ docs: Object.entries(data[col]).map(([id, v]) => ({ id, exists: true, data: () => v, metadata: meta })), metadata: meta });
+  const emit = col => subs[col].forEach(fn => { try { fn(snap(col)); } catch (e) { console.error(e); } });
+  const persist = () => {
+    try { localStorage.setItem(LKEY, JSON.stringify(data)); }
+    catch (e) { throw { code: e && e.name === 'QuotaExceededError' ? 'quota_exceeded' : 'unavailable', message: String(e) }; }
+  };
+  async function commit(col, mutate) {
+    const prev = data[col]; data[col] = { ...prev }; mutate(data[col]);
+    try { persist(); } catch (e) { data[col] = prev; throw e; }
+    emit(col);
+  }
+  const split = p => { const [col, id] = p.split('/'); if (!COLS.includes(col) || !id) throw new TypeError('bad path ' + p); return [col, id]; };
+  window.addEventListener('storage', e => { if (e.key === LKEY) { data = load(); COLS.forEach(emit); } });
+  return {
+    collection(col) {
+      return { onSnapshot(next) { subs[col].push(next); setTimeout(() => next(snap(col)), 0); return () => { subs[col] = subs[col].filter(f => f !== next); }; } };
+    },
+    doc(p) {
+      const [col, id] = split(p);
+      return {
+        set: v => commit(col, m => { m[id] = clone(v); }),
+        update: v => data[col][id] ? commit(col, m => { m[id] = { ...m[id], ...clone(v) }; }) : Promise.reject({ code: 'invalid_argument', message: 'missing ' + p }),
+        delete: () => commit(col, m => { delete m[id]; }),
+      };
+    },
+    exportAll: () => clone(data),
+    importAll(obj) {
+      const prev = data; const next = clone(data); const n = {};
+      for (const col of COLS) { const src = obj[col] && typeof obj[col] === 'object' ? obj[col] : {}; n[col] = Object.keys(src).length; Object.assign(next[col], src); }
+      data = next;
+      try { persist(); } catch (e) { data = prev; throw e; }
+      COLS.forEach(emit);
+      return n;
+    }
+  };
+}
+function lastBackup() { try { return +localStorage.getItem('tft-log-backup-at') || 0; } catch (e) { return 0; } }
+function exportBackup() {
+  const payload = { app: 'tft-log', version: 1, exportedAt: new Date().toISOString(), ...S.db.exportAll() };
+  const blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
+  const x = new Date(); const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tft-log-backup-${x.getFullYear()}${p2(x.getMonth() + 1)}${p2(x.getDate())}-${p2(x.getHours())}${p2(x.getMinutes())}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  try { localStorage.setItem('tft-log-backup-at', String(now())); } catch (e) {}
+  toast('백업 파일을 내려받았습니다');
+}
+async function importBackup(file) {
+  let obj;
+  try { obj = JSON.parse(await file.text()); } catch (e) { toast('백업 파일을 읽지 못했습니다. 이 사이트에서 내려받은 .json 파일인지 확인해 주세요.'); return; }
+  if (!obj || obj.app !== 'tft-log') { toast('TFT 제작 일지 백업 파일이 아닙니다.'); return; }
+  try { const n = await busy('기록을 불러오는 중…', () => S.db.importAll(obj)); toast(`불러왔습니다 · 차수 ${n.runs}개, 샘플 ${n.samples}개, 공정 기록 ${n.records}건`); }
+  catch (e) { toast(errMsg(e)); }
+  schedule();
+}
+function localLeftover() {
+  try { const d = JSON.parse(localStorage.getItem(LKEY) || '{}'); return d.runs && Object.keys(d.runs).length ? d : null; } catch (e) { return null; }
+}
+function backupPanel() {
+  const lb = lastBackup();
+  if (S.cloud) {
+    const left = localLeftover();
+    return `<section class="panel" aria-label="팀 저장소">
+      <h3>팀 공유 저장소에 연결됨</h3>
+      <p>모든 조원이 같은 기록을 실시간으로 봅니다. 만일을 위해 가끔 백업 파일을 내려받아 두세요. 마지막 백업: <b>${lb ? stamp(lb) : '아직 없음'}</b></p>
+      ${left ? `<div class="shared"><p>이 기기에만 저장해 둔 차수 ${Object.keys(left.runs).length}개가 있습니다. 팀 저장소로 옮기면 조원들도 볼 수 있습니다.</p><div class="actions"><button class="primary sm" data-act="moveLocal">팀 저장소로 옮기기</button></div></div>` : ''}
+      ${S.ui.nm ? `<div class="inline-edit"><input id="nm-name" data-ui="nmName" data-enter="nameSave" value="${esc(S.ui.nmName ?? '')}" aria-label="기록자 이름" placeholder="예: 김가영"><button class="primary sm" data-act="nameSave">저장</button><button class="ghost sm" data-act="nameCancel">취소</button></div>`
+        : `<p>기록자 이름: <b>${esc(S.me || '미설정')}</b></p>`}
+      <div class="actions">
+        <button class="ghost" data-act="bkExport">백업 파일 내려받기</button><button class="ghost" data-act="bkImport">백업 불러오기</button>
+        ${S.ui.nm ? '' : '<button class="ghost" data-act="nameEdit">기록자 이름 변경</button>'}
+        <button class="ghost danger" data-act="logout">이 기기에서 로그아웃</button>
+      </div>
+      <input type="file" id="bk-file" accept=".json,application/json" hidden>
+    </section>`;
+  }
+  return `<section class="panel" aria-label="백업">
+    <h3>이 기기에만 저장되는 중</h3>
+    <p>지금 기록은 이 브라우저에만 저장되고 조원에게는 보이지 않습니다. 방문 기록을 지우거나, 아이폰 Safari에서 7일 넘게 열지 않으면 사라질 수 있으니 백업 파일을 자주 내려받아 두세요. 백업 파일로 다른 기기에 옮기거나 나중에 공유 저장소로 옮길 수 있습니다.</p>
+    <p>마지막 백업: <b>${lb ? stamp(lb) : '아직 없음'}</b></p>
+    <div class="actions"><button class="primary" data-act="bkExport">백업 파일 내려받기</button><button class="ghost" data-act="bkImport">백업 불러오기</button></div>
+    <input type="file" id="bk-file" accept=".json,application/json" hidden>
+  </section>`;
+}
+A.bkExport = () => exportBackup();
+A.bkImport = () => { const f = document.getElementById('bk-file'); if (f) { f.value = ''; f.click(); } };
+app.addEventListener('change', e => { if (e.target.id === 'bk-file' && e.target.files && e.target.files[0]) importBackup(e.target.files[0]); });
+
+/* ---------- team storage (Supabase) ---------- */
+function cloudStore(sb) {
+  let data = { runs: {}, samples: {}, records: {} };
+  const subs = { runs: [], samples: [], records: [] };
+  let loaded = false;
+  const meta = () => ({ fromCache: !loaded, hasPendingWrites: false });
+  const snap = col => ({ docs: Object.entries(data[col]).map(([id, v]) => ({ id, exists: true, data: () => v, metadata: meta() })), metadata: meta() });
+  const emit = col => subs[col].forEach(fn => { try { fn(snap(col)); } catch (e) { console.error(e); } });
+  const fail = e => {
+    const m = (e && e.message) || String(e);
+    return { code: (e && (e.code === '42501' || e.code === 'PGRST301' || /JWT|permission|policy/i.test(m))) ? 'auth' : 'unavailable', message: m };
+  };
+  const split = p => { const [col, id] = p.split('/'); if (!COLS.includes(col) || !id) throw new TypeError('bad path ' + p); return [col, id]; };
+  async function fetchAll() {
+    const next = { runs: {}, samples: {}, records: {} };
+    for (let from = 0; ; from += 1000) {
+      const { data: rows, error } = await sb.from('docs').select('col,id,data').order('col').order('id').range(from, from + 999);
+      if (error) throw fail(error);
+      for (const r of rows) if (next[r.col]) next[r.col][r.id] = r.data;
+      if (rows.length < 1000) break;
+    }
+    data = next; loaded = true; COLS.forEach(emit);
+  }
+  function apply(row, del) {
+    if (!row || !data[row.col] || !row.id) return;
+    data[row.col] = { ...data[row.col] };
+    if (del) delete data[row.col][row.id]; else data[row.col][row.id] = row.data;
+    emit(row.col);
+  }
+  sb.channel('docs-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, p => { if (p.eventType === 'DELETE') apply(p.old, true); else apply(p.new, false); })
+    .subscribe(status => { if (status === 'SUBSCRIBED' && loaded) fetchAll().catch(() => {}); });
+  async function write(col, id, value) {
+    const prev = data[col][id];
+    data[col] = { ...data[col] };
+    if (value === null) delete data[col][id]; else data[col][id] = value;
+    emit(col);
+    const q = value === null
+      ? sb.from('docs').delete().eq('col', col).eq('id', id)
+      : sb.from('docs').upsert({ col, id, data: value, updated_at: new Date().toISOString() });
+    const { error } = await q;
+    if (error) {
+      data[col] = { ...data[col] };
+      if (prev === undefined) delete data[col][id]; else data[col][id] = prev;
+      emit(col); throw fail(error);
+    }
+  }
+  return {
+    start: fetchAll,
+    refresh: fetchAll,
+    collection(col) {
+      return { onSnapshot(next) { subs[col].push(next); if (loaded) setTimeout(() => next(snap(col)), 0); return () => { subs[col] = subs[col].filter(f => f !== next); }; } };
+    },
+    doc(p) {
+      const [col, id] = split(p);
+      return {
+        set: v => write(col, id, clone(v)),
+        update: v => data[col][id] ? write(col, id, { ...data[col][id], ...clone(v) }) : Promise.reject({ code: 'invalid_argument', message: 'missing ' + p }),
+        delete: () => write(col, id, null),
+      };
+    },
+    exportAll: () => clone(data),
+    async importAll(obj) {
+      const rows = []; const n = {}; const t = new Date().toISOString();
+      for (const col of COLS) {
+        const src = obj[col] && typeof obj[col] === 'object' ? obj[col] : {};
+        n[col] = Object.keys(src).length;
+        for (const [id, v] of Object.entries(src)) rows.push({ col, id, data: v, updated_at: t });
+      }
+      for (let i = 0; i < rows.length; i += 500) {
+        const { error } = await sb.from('docs').upsert(rows.slice(i, i + 500));
+        if (error) throw fail(error);
+      }
+      await fetchAll();
+      return n;
+    }
+  };
+}
+
+const getName = () => { try { return localStorage.getItem('tft-log-name') || ''; } catch (e) { return ''; } };
+const putName = v => { try { localStorage.setItem('tft-log-name', v); } catch (e) {} };
+function loginView() {
+  return `<header class="top"><div class="brand"><span class="mark" aria-hidden="true"></span>TFT 제작 일지</div></header>
+  <div class="home-stack">
+    <div class="hello"><h1>팀 비밀번호를 입력하세요</h1><p>조원끼리 공유한 팀 비밀번호로 들어갑니다. 이 기기에서는 한 번만 입력하면 다음부터 바로 열립니다.</p></div>
+    <section class="panel" aria-label="팀 로그인">
+      <label class="fl" for="lg-pw">팀 비밀번호<input id="lg-pw" type="password" data-ui="lgPw" data-enter="login" autocomplete="current-password" value="${esc(S.ui.lgPw || '')}"></label>
+      <label class="fl" for="lg-name">기록자 이름<input id="lg-name" data-ui="lgName" data-enter="login" value="${esc(S.ui.lgName ?? getName())}" placeholder="예: 김가영" autocomplete="name"><span style="font-weight:400">누가 저장했는지 카드에 표시됩니다. 나중에 바꿀 수 있습니다.</span></label>
+      <div class="actions"><button class="primary" data-act="login">들어가기</button></div>
+    </section>
+  </div>`;
+}
+A.login = async () => {
+  const pw = S.ui.lgPw || '';
+  if (!pw) { toast('팀 비밀번호를 입력해 주세요'); return; }
+  let res;
+  await busy('확인하는 중…', async () => { res = await S.sb.auth.signInWithPassword({ email: window.TFT_CONFIG.teamEmail, password: pw }); });
+  if (res.error) { toast(/invalid/i.test(res.error.message) ? '팀 비밀번호가 맞지 않습니다.' : '로그인하지 못했습니다: ' + res.error.message); return; }
+  const nm = (S.ui.lgName ?? getName()).trim(); putName(nm); S.me = nm || null;
+  S.ui = { nrTpl: true, nrCount: 2 };
+  startCloud();
+};
+A.logout = async () => { try { await S.sb.auth.signOut(); } catch (e) {} location.reload(); };
+A.nameEdit = () => { S.ui.nm = true; S.ui.nmName = S.me || ''; };
+A.nameCancel = () => { S.ui.nm = false; };
+A.nameSave = () => { const v = (S.ui.nmName || '').trim(); putName(v); S.me = v || null; S.ui.nm = false; toast('기록자 이름을 바꿨습니다'); };
+A.moveLocal = async () => {
+  const left = localLeftover(); if (!left) return;
+  const n = await busy('팀 저장소로 옮기는 중…', () => S.db.importAll(left));
+  try { localStorage.setItem(LKEY + '-moved', localStorage.getItem(LKEY)); localStorage.removeItem(LKEY); } catch (e) {}
+  toast(`옮겼습니다 · 차수 ${n.runs}개, 샘플 ${n.samples}개, 공정 기록 ${n.records}건`);
+};
+
+/* ---------- boot ---------- */
+async function init() {
+  S.me = getName() || null;
+  render();
+  const cfg = window.TFT_CONFIG || {};
+  if (!cfg.url || !cfg.anonKey) {
+    S.db = localStore(); S.local = true;
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    subscribe(S.db, null); return;
+  }
+  if (!window.supabase) { S.phase = 'error'; S.err = 'Supabase 연결 파일을 불러오지 못함'; render(); return; }
+  S.sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  const { data } = await S.sb.auth.getSession();
+  if (!data || !data.session) { S.authNeed = true; render(); return; }
+  startCloud();
+}
+async function startCloud() {
+  S.authNeed = false; S.cloud = true; S.phase = 'loading';
+  S.db = cloudStore(S.sb);
+  const timer = setTimeout(() => { if (S.phase === 'loading') { S.phase = 'slow'; schedule(); } }, 10000);
+  subscribe(S.db, timer); schedule();
+  try { await S.db.start(); }
+  catch (e) {
+    clearTimeout(timer);
+    if (e.code === 'auth') { try { await S.sb.auth.signOut(); } catch (x) {} S.authNeed = true; S.cloud = false; toast('다시 로그인해 주세요'); }
+    else { S.phase = 'error'; S.err = e.message || ''; }
+    schedule();
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (S.cloud && document.visibilityState === 'visible') S.db.refresh().catch(() => {});
+});
+function subscribe(db, timer) {
+  for (const col of ['runs', 'samples', 'records']) {
+    db.collection(col).onSnapshot(snap => {
+      const m = {}; for (const d of snap.docs) m[d.id] = d.data();
+      S[col] = m;
+      if (!snap.metadata.fromCache) S.got.add(col);
+      if (S.got.size === 3 && S.phase !== 'error') { clearTimeout(timer); S.phase = 'ready'; }
+      syncDrafts(); schedule();
+    }, err => {
+      clearTimeout(timer); S.phase = 'error'; S.err = err && err.code || ''; schedule();
+    });
+  }
+}
+init();
+})();
+</script>
+
+</body>
+</html>
