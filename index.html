@@ -244,6 +244,10 @@ fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
 
 .busy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);box-shadow:0 8px 24px -10px rgb(0 0 0 / .4);padding:10px 16px;border-radius:8px;font-size:14px;z-index:19;max-width:calc(100% - 32px)}
+.pcs{font-size:12.5px;font-weight:600;background:var(--amber-soft);color:var(--amber-ink);border-radius:5px;padding:2px 8px}
+.pcsgrid{display:flex;flex-wrap:wrap;gap:8px 16px}
+.pcsgrid input{width:80px}
+.pcsname{font-family:var(--f-mono);font-size:13px;color:var(--ink)!important;min-width:26px}
 .memo{gap:10px}
 .memo textarea{min-height:180px}
 .memo-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.65;max-width:68ch}
@@ -670,8 +674,8 @@ function homeView() {
       const ss = runSamples(r.id);
       let last = 0; for (const rec of Object.values(S.records)) if (rec.runId === r.id && rec.updatedAt > last && hasData(rec)) last = rec.updatedAt;
       h += `<button class="runcard" data-act="openRun" data-id="${r.id}">
-        <span class="rc-top"><b>${esc(r.name)}</b><span>샘플 ${ss.length}개${last ? ` · 최근 기록 ${stamp(last)}` : ''}</span></span>
-        ${ss.length ? `<span class="rc-samples">${ss.map(s => { const p = progress(s); return `<span class="sbar">${esc(s.name)} <span class="mono">${p.done}/${p.total}</span></span>`; }).join('')}</span>` : ''}
+        <span class="rc-top"><b>${esc(r.name)}</b><span>페트리 ${ss.length}개${(() => { const t = ss.reduce((a, s) => a + (parseInt(piecesOf(s.id), 10) || 0), 0); return t ? ` · 샘플 ${t}개` : ''; })()}${last ? ` · 최근 기록 ${stamp(last)}` : ''}</span></span>
+        ${ss.length ? `<span class="rc-samples">${ss.map(s => { const p = progress(s); const pc = piecesOf(s.id); return `<span class="sbar">${esc(s.name)}${pc ? ` · 샘플 ${esc(pc)}개` : ''} <span class="mono">${p.done}/${p.total}</span></span>`; }).join('')}</span>` : ''}
       </button>`;
     }
     h += `</div>`;
@@ -737,7 +741,8 @@ function sampleView(sm, sid) {
   if (S.ui.smr === sid) {
     h += `<div class="inline-edit"><input id="sm-name" data-ui="smName" data-enter="smSave" value="${esc(S.ui.smName ?? sm.name)}" aria-label="샘플 이름"><button class="primary sm" data-act="smSave">저장</button><button class="ghost sm" data-act="smCancel">취소</button></div>`;
   } else {
-    h += `<h2>샘플 ${esc(sm.name)}</h2>
+    const pcs = piecesOf(sid);
+    h += `<h2>페트리 ${esc(sm.name)}</h2>${pcs ? `<span class="pcs">샘플 ${esc(pcs)}개</span>` : ''}
       <div class="prog"><span class="track"><i style="width:${p.total ? Math.round(p.done / p.total * 100) : 0}%"></i></span><span class="mono">${p.done}/${p.total} 완료</span></div>
       <button class="ghost sm w" data-act="smStart">이름 변경</button><button class="ghost sm danger w" data-act="ask" data-k="sm">삭제</button>`;
   }
@@ -758,9 +763,23 @@ function sampleView(sm, sid) {
   return h;
 }
 
+/* 웨이퍼 다이싱 카드에 페트리 접시별 샘플 수를 기록한다 (record.pieces = { 접시id: 개수 }) */
+const isDicing = r => /다이싱/.test(r.name || '');
+function piecesOf(sid) {
+  const sm = S.samples[sid]; if (!sm) return '';
+  for (const id of visibleSteps(sm)) { const r = S.records[id]; const v = isDicing(r) && r.pieces && r.pieces[sid]; if (v) return String(v); }
+  return '';
+}
+function piecesBits(r) {
+  const p = r.pieces || {}; const ids = (r.sampleIds || []).filter(s => p[s]);
+  if (!ids.length) return [];
+  if ((r.sampleIds || []).length === 1) return [`<b>샘플 ${esc(p[ids[0]])}개</b>`];
+  const order = runSamples(r.runId).map(s => s.id);
+  return [ids.sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(s => `${esc(sName(s))} <b>${esc(p[s])}개</b>`).join(', ')];
+}
 function summary(r) {
   const fx = (r.fixed || []).filter(f => String(f.v ?? '') !== '').map(f => esc(f.v + (f.u || '')));
-  const bits = [];
+  const bits = isDicing(r) ? piecesBits(r) : [];
   if (r.type === 'oven') {
     if (r.start?.d) {
       let s = fmtDT(r.start);
@@ -850,6 +869,13 @@ function cardBody(rid, r, i, sid, count) {
   h += `<fieldset ${S.canWrite ? '' : 'disabled'}>`;
   const opts = [['', '미기록'], ['done', '완료'], ['skip', '생략']];
   h += `<div class="fld"><span class="lbl">진행 여부</span><div class="seg" role="group" aria-label="진행 여부">${opts.map(([v, l]) => `<button class="${(d.status || '') === v ? 'on' : ''}" data-act="setf" data-rid="${rid}" data-f="status" data-v="${v}" aria-pressed="${(d.status || '') === v}">${l}</button>`).join('')}</div></div>`;
+  if (isDicing(d)) {
+    const order = runSamples(r.runId).map(s => s.id);
+    const ids = [...(r.sampleIds || [])].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    const multi = ids.length > 1;
+    h += `<div class="fld"><span class="lbl">페트리 접시 안 샘플 수</span><div class="pcsgrid">${ids.map(s =>
+      `<div class="unit">${multi ? `<span class="pcsname">${esc(sName(s))}</span>` : ''}${inp(rid, `pieces.${s}`, (d.pieces && d.pieces[s]) || '', { mode: 'numeric', ph: '예: 4', al: `페트리 ${sName(s)} 안 샘플 수` })}<span>개</span></div>`).join('')}</div></div>`;
+  }
   if ((d.fixed || []).length) {
     h += `<div class="fld"><span class="lbl">고정 조건<em>탭하면 이번 기록만 수정</em></span><div class="chips">${d.fixed.map((f, k) => S.ui.fx === rid + ':' + k
       ? `<span class="chip edit"><small>${esc(f.k)}</small>${inp(rid, `fixed.${k}.v`, f.v, { al: f.k })}<span>${esc(f.u)}</span><button class="ghost sm" data-act="fxdone">확인</button></span>`
