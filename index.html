@@ -244,6 +244,12 @@ fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
 
 .busy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);box-shadow:0 8px 24px -10px rgb(0 0 0 / .4);padding:10px 16px;border-radius:8px;font-size:14px;z-index:19;max-width:calc(100% - 32px)}
+.memo{gap:10px}
+.memo textarea{min-height:180px}
+.memo-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.65;max-width:68ch}
+.memo-text a{color:var(--link)}
+.memo-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.memo-foot .meta{flex:1}
 .hdr-acts{margin-left:auto;display:flex;gap:6px;align-items:center}
 /* 참고 자료 */
 .refs{display:grid;gap:8px}
@@ -671,6 +677,7 @@ function homeView() {
     h += `</div>`;
     if (S.db) h += S.ui.nr ? newRunForm(false) : `<button class="add big w" data-act="nrOpen">+ 새 제작 차수</button>`;
   }
+  if (S.db && (S.local || S.phase === 'ready')) h += memoPanel();
   if (S.cloud && S.phase === 'ready') h += refsPanel();
   if (S.cloud && S.phase === 'ready') h += `<div class="sect">팀 저장소 · 이 기기</div>` + backupPanel();
   h += `</div>`;
@@ -1373,7 +1380,7 @@ function loadPdfJs() {
   });
   return pdfjsReady;
 }
-function refList() { return Object.entries(S.refs || {}).map(([id, r]) => ({ id, ...r })).sort((a, b) => (a.uploadedAt || 0) - (b.uploadedAt || 0)); }
+function refList() { return Object.entries(S.refs || {}).filter(([, r]) => r.kind !== 'note').map(([id, r]) => ({ id, ...r })).sort((a, b) => (a.uploadedAt || 0) - (b.uploadedAt || 0)); }
 const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round((b || 0) / 1024)) + 'KB';
 const cacheKey = r => `https://tft-log.local/refs/${r.path}?v=${r.uploadedAt}`;
 const lastPage = id => { try { return +localStorage.getItem('tft-ref-page-' + id) || 1; } catch (e) { return 1; } };
@@ -1461,6 +1468,36 @@ A.refFailClose = () => { S.refFail = null; };
 const refInput = filePicker('ref-file', 'application/pdf,.pdf', f => uploadRef(f));
 A.refPick = () => { refInput.click(); };
 A.refDel = ds => deleteRef(ds.id).catch(e => toast(refErr(e)));
+
+/* ---------- 팀 메모장 (refs/team-memo 문서 하나에 저장) ---------- */
+const MEMO_ID = 'team-memo';
+function linkify(t) {
+  return esc(t).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+}
+function memoPanel() {
+  const m = S.refs[MEMO_ID];
+  let h = `<div class="sect">팀 메모장</div><section class="panel memo" aria-label="팀 메모장">`;
+  if (S.ui.memoEdit) {
+    const changed = (m ? m.updatedAt : 0) !== (S.ui.memoBase || 0);
+    if (changed) h += `<div class="stale"><p>편집하는 동안 다른 조원이 메모를 저장했습니다. 지금 저장하면 그 내용을 덮어씁니다.</p><div class="actions"><button class="ghost sm" data-act="memoReload">최신 내용 불러오기 (내 수정 버림)</button></div></div>`;
+    h += `<textarea id="memo-text" data-ui="memoText" rows="9" aria-label="팀 메모" placeholder="예: 11/12 스퍼터 예약 14시~16시 (가영)&#10;IGZO 타깃 교체 예정 · 다음 주 화요일&#10;오븐 2번 온도 표시 이상 → 1번 사용">${esc(S.ui.memoText || '')}</textarea>
+      <div class="actions"><button class="primary sm" data-act="memoSave">저장</button><button class="ghost sm" data-act="memoCancel">취소</button></div>`;
+  } else {
+    h += m && m.text ? `<div class="memo-text">${linkify(m.text)}</div>`
+      : `<p class="empty" style="padding:0">아직 메모가 없습니다. 장비 예약, 공지, 다음 실험 계획처럼 조원 모두가 봐야 할 내용을 적어 두세요.</p>`;
+    h += `<div class="memo-foot"><span class="meta">${m && m.updatedAt ? `마지막 수정 ${stamp(m.updatedAt)}${m.updatedBy ? ' · ' + esc(m.updatedBy) : ''}` : ''}</span><button class="ghost sm w" data-act="memoEdit">${m && m.text ? '수정' : '메모 쓰기'}</button></div>`;
+  }
+  return h + `</section>`;
+}
+A.memoEdit = () => { const m = S.refs[MEMO_ID]; S.ui.memoEdit = true; S.ui.memoText = (m && m.text) || ''; S.ui.memoBase = (m && m.updatedAt) || 0; };
+A.memoCancel = () => { S.ui.memoEdit = false; };
+A.memoReload = () => { const m = S.refs[MEMO_ID]; S.ui.memoText = (m && m.text) || ''; S.ui.memoBase = (m && m.updatedAt) || 0; };
+A.memoSave = async () => {
+  const text = (S.ui.memoText || '').replace(/\s+$/, '');
+  await D('refs/' + MEMO_ID).set({ kind: 'note', text, updatedAt: now(), updatedBy: S.me || null });
+  S.ui.memoEdit = false; toast('메모를 저장했습니다. 조원 모두에게 보입니다.');
+};
+WRITE_ACTS.add('memoSave');
 
 /* viewer */
 const viewer = document.getElementById('viewer');
