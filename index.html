@@ -244,6 +244,31 @@ fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
 
 .busy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);box-shadow:0 8px 24px -10px rgb(0 0 0 / .4);padding:10px 16px;border-radius:8px;font-size:14px;z-index:19;max-width:calc(100% - 32px)}
+.hdr-acts{margin-left:auto;display:flex;gap:6px;align-items:center}
+/* 참고 자료 */
+.refs{display:grid;gap:8px}
+.refrow{display:flex;gap:8px;align-items:stretch}
+.refopen{flex:1;display:flex;gap:12px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;min-width:0}
+.refopen:hover{border-color:var(--line-strong)}
+.refrow .icon{height:auto;min-height:38px}
+.refic{flex:none;width:38px;height:46px;border-radius:5px;background:var(--warn-soft);color:var(--warn);font-family:var(--f-mono);font-size:11px;font-weight:600;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.refmain{display:grid;gap:2px;min-width:0}
+.refmain b{font-weight:600;overflow-wrap:anywhere}
+.refmain small{color:var(--muted);font-size:12.5px}
+body.noscroll{overflow:hidden}
+#viewer{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column}
+#viewer[hidden]{display:none!important}
+.vbar{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--surface)}
+.vtitle{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px}
+.vpage{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.vbody{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 8px calc(24px + env(safe-area-inset-bottom,0px))}
+.vpages{margin:0 auto;display:grid;gap:8px}
+.vpg{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.vpg canvas{display:block;width:100%;height:100%;background:#fff}
+.vpn{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px}
+.vpg canvas + .vpn,.vpg .vpn:has(+ canvas){display:none}
+.vmsg{color:var(--muted);text-align:center;padding:40px 16px;max-width:46ch;margin:0 auto}
+.vlist{max-width:720px;margin:0 auto;display:grid;gap:8px;padding-top:6px}
 .ro .w{display:none!important}
 .empty{color:var(--muted);font-size:14px;padding:18px 0}
 @media (max-width:460px){
@@ -258,6 +283,7 @@ fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
 </head>
 <body>
 <div id="app"><p class="empty">TFT 제작 일지를 여는 중…</p></div>
+<div id="viewer" role="dialog" aria-modal="true" aria-label="참고 자료 보기" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
@@ -308,7 +334,7 @@ const BILAYER = [
 
 const S = {
   db: null, user: null, me: null, canWrite: true, phase: 'loading', err: '',
-  runs: {}, samples: {}, records: {}, got: new Set(),
+  runs: {}, samples: {}, records: {}, refs: {}, got: new Set(), cachedRefs: new Set(),
   view: 'home', runId: null, tab: null, open: new Set(), drafts: {},
   ui: { nrTpl: true, nrCount: 2 }, names: {}, asked: new Set(), busy: '', toast: '', scrollTo: null
 };
@@ -412,6 +438,7 @@ function matchStep(r, rid, sid) {
 /* ---------- writes ---------- */
 function errMsg(e) {
   const c = e && e.code;
+  if (c === 'setup') return '자료실 설정이 아직 안 되어 있습니다. Supabase SQL Editor에서 supabase-자료실.sql을 먼저 실행해 주세요.';
   if (c === 'auth') return '로그인이 만료되었거나 권한이 없습니다. 새로 고침한 뒤 팀 비밀번호를 다시 입력해 주세요.';
   if (c === 'invalid_argument' && S.cloud) return '저장하지 못했습니다. 다른 조원이 방금 이 항목을 삭제했을 수 있습니다. 새로 고침해 주세요.';
   if (c === 'invalid_argument') return '저장하지 못했습니다. 이 페이지에 기록할 권한이 없거나 입력 형식이 잘못되었습니다.';
@@ -644,6 +671,7 @@ function homeView() {
     h += `</div>`;
     if (S.db) h += S.ui.nr ? newRunForm(false) : `<button class="add big w" data-act="nrOpen">+ 새 제작 차수</button>`;
   }
+  if (S.cloud && S.phase === 'ready') h += refsPanel();
   if (S.cloud && S.phase === 'ready') h += `<div class="sect">팀 저장소 · 이 기기</div>` + backupPanel();
   h += `</div>`;
   return h;
@@ -671,7 +699,7 @@ function runView() {
     <button class="back" data-act="home" aria-label="차수 목록으로">← 목록</button>
     <div class="runhead">
       ${S.ui.rn ? `<div class="inline-edit"><input id="rn-name" data-ui="rnName" data-enter="rnSave" value="${esc(S.ui.rnName ?? run.name)}" aria-label="차수 이름"><button class="primary sm" data-act="rnSave">저장</button><button class="ghost sm" data-act="rnCancel">취소</button></div>`
-      : `<h1 class="runname">${esc(run.name)}</h1>${syncBadge().replace('class="sync', 'class="sync dotonly')}<button class="ghost sm w" data-act="runMenu" aria-expanded="${!!S.ui.runMenu}" style="margin-left:auto">차수 관리</button>`}
+      : `<h1 class="runname">${esc(run.name)}</h1>${syncBadge().replace('class="sync', 'class="sync dotonly')}<span class="hdr-acts">${S.cloud && refList().length ? '<button class="ghost sm" data-act="refList">참고 자료</button>' : ''}<button class="ghost sm w" data-act="runMenu" aria-expanded="${!!S.ui.runMenu}">차수 관리</button></span>`}
     </div>
   </header>`;
   if (S.ui.runMenu && !S.ui.rn) {
@@ -1083,15 +1111,16 @@ app.addEventListener('focusout', e => {
 });
 
 /* ---------- this-device storage (used outside claude.ai, e.g. GitHub Pages) ---------- */
-const LKEY = 'tft-log-data', COLS = ['runs', 'samples', 'records'];
+const LKEY = 'tft-log-data', COLS = ['runs', 'samples', 'records', 'refs'];
+const emptyCols = v => Object.fromEntries(COLS.map(c => [c, typeof v === 'function' ? v(c) : (Array.isArray(v) ? [] : {})]));
 function localStore() {
-  const blank = () => ({ runs: {}, samples: {}, records: {} });
+  const blank = () => emptyCols({});
   const load = () => {
-    try { const d = JSON.parse(localStorage.getItem(LKEY) || '{}'); return { runs: d.runs || {}, samples: d.samples || {}, records: d.records || {} }; }
+    try { const d = JSON.parse(localStorage.getItem(LKEY) || '{}'); return emptyCols(c => d[c] || {}); }
     catch (e) { return blank(); }
   };
   let data = load();
-  const subs = { runs: [], samples: [], records: [] };
+  const subs = emptyCols([]);
   const meta = { fromCache: false, hasPendingWrites: false };
   const snap = col => ({ docs: Object.entries(data[col]).map(([id, v]) => ({ id, exists: true, data: () => v, metadata: meta })), metadata: meta });
   const emit = col => subs[col].forEach(fn => { try { fn(snap(col)); } catch (e) { console.error(e); } });
@@ -1193,19 +1222,20 @@ app.addEventListener('change', e => { if (e.target.id === 'bk-file' && e.target.
 
 /* ---------- team storage (Supabase) ---------- */
 function cloudStore(sb) {
-  let data = { runs: {}, samples: {}, records: {} };
-  const subs = { runs: [], samples: [], records: [] };
+  let data = emptyCols({});
+  const subs = emptyCols([]);
   let loaded = false;
   const meta = () => ({ fromCache: !loaded, hasPendingWrites: false });
   const snap = col => ({ docs: Object.entries(data[col]).map(([id, v]) => ({ id, exists: true, data: () => v, metadata: meta() })), metadata: meta() });
   const emit = col => subs[col].forEach(fn => { try { fn(snap(col)); } catch (e) { console.error(e); } });
   const fail = e => {
     const m = (e && e.message) || String(e);
+    if (e && e.code === '23514') return { code: 'setup', message: m };
     return { code: (e && (e.code === '42501' || e.code === 'PGRST301' || /JWT|permission|policy/i.test(m))) ? 'auth' : 'unavailable', message: m };
   };
   const split = p => { const [col, id] = p.split('/'); if (!COLS.includes(col) || !id) throw new TypeError('bad path ' + p); return [col, id]; };
   async function fetchAll() {
-    const next = { runs: {}, samples: {}, records: {} };
+    const next = emptyCols({});
     for (let from = 0; ; from += 1000) {
       const { data: rows, error } = await sb.from('docs').select('col,id,data').order('col').order('id').range(from, from + 999);
       if (error) throw fail(error);
@@ -1323,6 +1353,213 @@ A.moveLocal = async () => {
   toast(`옮겼습니다 · 차수 ${n.runs}개, 샘플 ${n.samples}개, 공정 기록 ${n.records}건`);
 };
 
+/* ---------- 참고 자료 (PDF): 비공개 Supabase 저장소 + 사이트 안 뷰어 + 기기 캐시 ---------- */
+const REF_BUCKET = 'refs';
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let pdfjsReady = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfjsReady) pdfjsReady = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = PDFJS + 'pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; res(window.pdfjsLib); };
+    s.onerror = () => { pdfjsReady = null; rej(new Error('PDF 보기 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.')); };
+    document.head.appendChild(s);
+  });
+  return pdfjsReady;
+}
+function refList() { return Object.entries(S.refs || {}).map(([id, r]) => ({ id, ...r })).sort((a, b) => (a.uploadedAt || 0) - (b.uploadedAt || 0)); }
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round((b || 0) / 1024)) + 'KB';
+const cacheKey = r => `https://tft-log.local/refs/${r.path}?v=${r.uploadedAt}`;
+const lastPage = id => { try { return +localStorage.getItem('tft-ref-page-' + id) || 1; } catch (e) { return 1; } };
+const putLastPage = (id, n) => { try { localStorage.setItem('tft-ref-page-' + id, String(n)); } catch (e) {} };
+async function cachedBlob(r) {
+  try { const c = await caches.open('tft-refs'); const m = await c.match(cacheKey(r)); return m ? await m.blob() : null; } catch (e) { return null; }
+}
+async function cachePut(r, blob) {
+  try {
+    const c = await caches.open('tft-refs');
+    for (const k of await c.keys()) if (k.url.includes('/refs/' + r.path + '?')) await c.delete(k);
+    await c.put(cacheKey(r), new Response(blob, { headers: { 'Content-Type': 'application/pdf' } }));
+    return true;
+  } catch (e) { return false; }
+}
+async function refreshCached() {
+  try {
+    const c = await caches.open('tft-refs'); const urls = new Set((await c.keys()).map(k => k.url));
+    S.cachedRefs = new Set(refList().filter(r => urls.has(cacheKey(r))).map(r => r.id)); schedule();
+  } catch (e) {}
+}
+function refErr(e) {
+  const m = (e && e.message) || String(e || '');
+  if ((e && e.code === 'setup') || /bucket not found/i.test(m)) return '자료실 설정이 아직 안 되어 있습니다. Supabase SQL Editor에서 supabase-자료실.sql을 먼저 실행해 주세요.';
+  if (/exceed|too large|payload|maximum allowed size/i.test(m)) return '파일이 너무 커서 올리지 못했습니다. 50MB 이하만 올릴 수 있습니다.';
+  if (/row-level|policy|unauthorized|403/i.test(m)) return '권한이 없어 처리하지 못했습니다. supabase-자료실.sql을 실행했는지 확인해 주세요.';
+  return '처리하지 못했습니다: ' + m;
+}
+function refsPanel() {
+  const list = refList();
+  let h = `<div class="sect">참고 자료</div><div class="refs">`;
+  if (!list.length) h += `<p class="empty" style="padding:4px 0">아직 올린 자료가 없습니다. PDF를 올리면 조원 모두 사이트 안에서 바로 볼 수 있습니다.</p>`;
+  for (const r of list) {
+    const lp = lastPage(r.id);
+    h += `<div class="refrow">
+      <button class="refopen" data-act="refOpen" data-id="${r.id}">
+        <span class="refic" aria-hidden="true">PDF</span>
+        <span class="refmain"><b>${esc(r.name)}</b><small>${fmtSize(r.size)} · ${S.cachedRefs.has(r.id) ? '이 기기에 저장됨' : '처음 열 때 한 번만 받음'}${lp > 1 ? ` · ${lp}쪽까지 봄` : ''}</small></span>
+      </button>
+      <button class="icon w" data-act="ask" data-k="ref:${r.id}" aria-label="${esc(r.name)} 삭제">×</button>
+    </div>`;
+    if (S.ui.confirm === 'ref:' + r.id) h += `<div class="confirm"><span>「${esc(r.name)}」을 팀 자료에서 삭제합니다. 모든 조원에게서 사라집니다.</span><button class="primary sm" data-act="refDel" data-id="${r.id}" style="background:var(--warn);border-color:var(--warn)">삭제</button><button class="ghost sm" data-act="cancelConfirm">취소</button></div>`;
+  }
+  h += `</div><button class="add w" data-act="refPick">+ PDF 올리기 (50MB 이하)</button><input type="file" id="ref-file" accept="application/pdf,.pdf" hidden>`;
+  return h;
+}
+async function uploadRef(file) {
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast('PDF 파일만 올릴 수 있습니다'); return; }
+  if (file.size > 50 * 1048576) { toast(`파일이 ${fmtSize(file.size)}라 너무 큽니다. 50MB 이하만 올릴 수 있습니다.`); return; }
+  const id = uid(), path = `ref-${id}.pdf`, t = now();
+  const meta = { name: file.name.replace(/\.pdf$/i, ''), path, size: file.size, uploadedAt: t, uploadedBy: S.me || null };
+  let err = null;
+  await busy(`「${meta.name}」 올리는 중… ${fmtSize(file.size)} · 와이파이에서 올리는 것을 권장합니다`, async () => {
+    const up = await S.sb.storage.from(REF_BUCKET).upload(path, file, { contentType: 'application/pdf', upsert: false });
+    if (up.error) { err = up.error; return; }
+    try { await D('refs/' + id).set(meta); }
+    catch (e) { err = e; await S.sb.storage.from(REF_BUCKET).remove([path]); }
+  });
+  if (err) { toast(refErr(err)); return; }
+  if (await cachePut(meta, file)) S.cachedRefs.add(id);
+  schedule();
+  toast(`「${meta.name}」을 올렸습니다. 조원 모두 볼 수 있습니다.`);
+}
+async function deleteRef(id) {
+  const r = S.refs[id]; if (!r) return;
+  await busy('삭제하는 중…', async () => {
+    const rm = await S.sb.storage.from(REF_BUCKET).remove([r.path]);
+    if (rm.error) throw { code: 'ref', message: rm.error.message };
+    await D('refs/' + id).delete();
+  });
+  try { const c = await caches.open('tft-refs'); await c.delete(cacheKey(r)); } catch (e) {}
+  S.ui.confirm = null; toast('삭제했습니다');
+}
+A.refOpen = ds => { openRef(ds.id); };
+A.refList = () => { openRefList(); };
+A.refPick = () => { const f = document.getElementById('ref-file'); if (f) { f.value = ''; f.click(); } };
+A.refDel = ds => deleteRef(ds.id).catch(e => toast(refErr(e)));
+app.addEventListener('change', e => { if (e.target.id === 'ref-file' && e.target.files && e.target.files[0]) uploadRef(e.target.files[0]); });
+
+/* viewer */
+const viewer = document.getElementById('viewer');
+const V = { id: null, pdf: null, zoom: 1, obs: null, pages: [], saveT: null, pushed: false };
+function vShow(inner) {
+  viewer.innerHTML = inner; viewer.hidden = false; document.body.classList.add('noscroll');
+  if (!V.pushed) { try { history.pushState({ tftViewer: 1 }, ''); V.pushed = true; } catch (e) {} }
+}
+function vClose(fromPop) {
+  if (V.obs) V.obs.disconnect(); V.obs = null;
+  if (V.pdf) { try { V.pdf.destroy(); } catch (e) {} } V.pdf = null; V.id = null; V.pages = [];
+  viewer.hidden = true; viewer.innerHTML = ''; document.body.classList.remove('noscroll');
+  if (V.pushed && !fromPop) { V.pushed = false; try { history.back(); } catch (e) {} } else V.pushed = false;
+  schedule();
+}
+window.addEventListener('popstate', () => { if (!viewer.hidden) vClose(true); });
+function openRefList() {
+  const list = refList();
+  vShow(`<div class="vbar"><button class="ghost sm" data-v="close">← 닫기</button><b class="vtitle">참고 자료</b></div>
+    <div class="vbody"><div class="vlist">${list.map(r => `<button class="refopen" data-v="open" data-id="${r.id}"><span class="refic" aria-hidden="true">PDF</span><span class="refmain"><b>${esc(r.name)}</b><small>${fmtSize(r.size)} · ${S.cachedRefs.has(r.id) ? '이 기기에 저장됨' : '처음 열 때 한 번만 받음'}${lastPage(r.id) > 1 ? ` · ${lastPage(r.id)}쪽까지 봄` : ''}</small></span></button>`).join('') || '<p class="vmsg">아직 올린 자료가 없습니다. 홈 화면의 참고 자료에서 PDF를 올려 주세요.</p>'}</div></div>`);
+}
+const vMsg = t => { const m = document.getElementById('vmsg'); if (m) m.textContent = t; };
+async function openRef(id) {
+  const r = S.refs[id]; if (!r) return;
+  if (V.pdf) { try { V.pdf.destroy(); } catch (e) {} V.pdf = null; }
+  V.id = id; V.zoom = 1;
+  vShow(`<div class="vbar"><button class="ghost sm" data-v="close">← 닫기</button><b class="vtitle">${esc(r.name)}</b>
+    <span class="vpage mono" id="vpage"></span>
+    <button class="icon" data-v="zout" aria-label="축소">−</button><button class="icon" data-v="zin" aria-label="확대">+</button></div>
+    <div class="vbody" id="vbody"><p class="vmsg" id="vmsg">여는 중…</p></div>`);
+  try {
+    let blob = await cachedBlob(r);
+    if (!blob) {
+      vMsg(`처음 한 번만 내려받는 중… (${fmtSize(r.size)}) 다음부터는 이 기기에서 바로 열립니다.`);
+      const { data, error } = await S.sb.storage.from(REF_BUCKET).download(r.path);
+      if (error) throw error;
+      blob = data;
+      if (await cachePut(r, blob)) { S.cachedRefs.add(id); schedule(); }
+    }
+    if (V.id !== id) return;
+    vMsg('페이지를 준비하는 중…');
+    const lib = await loadPdfJs();
+    const pdf = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    if (V.id !== id) { pdf.destroy(); return; }
+    V.pdf = pdf;
+    await layoutPages(Math.min(lastPage(id), pdf.numPages));
+  } catch (e) { vMsg(refErr(e)); }
+}
+async function layoutPages(goTo) {
+  const body = document.getElementById('vbody'); if (!body || !V.pdf) return;
+  if (V.obs) V.obs.disconnect();
+  const first = await V.pdf.getPage(1); const vp1 = first.getViewport({ scale: 1 });
+  const cssW = Math.max(200, (body.clientWidth - 16) * V.zoom);
+  body.innerHTML = '';
+  const wrap = document.createElement('div'); wrap.className = 'vpages'; wrap.style.width = cssW + 'px'; body.appendChild(wrap);
+  V.pages = [];
+  for (let n = 1; n <= V.pdf.numPages; n++) {
+    const d = document.createElement('div'); d.className = 'vpg'; d.dataset.n = n;
+    d.style.height = Math.round(cssW * vp1.height / vp1.width) + 'px';
+    d.innerHTML = `<span class="vpn mono">${n}</span>`;
+    wrap.appendChild(d); V.pages.push({ el: d, done: false, task: null });
+  }
+  V.obs = new IntersectionObserver(ents => {
+    for (const en of ents) { const p = V.pages[+en.target.dataset.n - 1]; if (en.isIntersecting) renderPage(p, +en.target.dataset.n, cssW); else unrenderPage(p); }
+  }, { root: body, rootMargin: '1200px 0px' });
+  V.pages.forEach(p => V.obs.observe(p.el));
+  body.onscroll = () => updatePageNo(body);
+  const target = V.pages[(goTo || 1) - 1];
+  if (target) body.scrollTop = target.el.offsetTop - 8;
+  updatePageNo(body);
+}
+async function renderPage(p, n, cssW) {
+  if (!p || p.done || !V.pdf) return; p.done = true;
+  try {
+    const page = await V.pdf.getPage(n);
+    const vp0 = page.getViewport({ scale: 1 });
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const vp = page.getViewport({ scale: cssW / vp0.width * dpr });
+    const cv = document.createElement('canvas'); cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+    p.el.style.height = Math.round(cssW * vp0.height / vp0.width) + 'px';
+    p.task = page.render({ canvasContext: cv.getContext('2d'), viewport: vp });
+    await p.task.promise; p.task = null;
+    if (!p.done) return;
+    p.el.querySelector('canvas')?.remove(); p.el.appendChild(cv);
+  } catch (e) { p.done = false; }
+}
+function unrenderPage(p) {
+  if (!p || !p.done) return; p.done = false;
+  if (p.task) { try { p.task.cancel(); } catch (e) {} p.task = null; }
+  const cv = p.el.querySelector('canvas'); if (cv) { cv.width = 0; cv.height = 0; cv.remove(); }
+}
+function currentPage(body) {
+  const y = body.scrollTop + body.clientHeight / 3; let n = 1;
+  for (let i = 0; i < V.pages.length; i++) { if (V.pages[i].el.offsetTop <= y) n = i + 1; else break; }
+  return n;
+}
+function updatePageNo(body) {
+  if (!V.pdf) return; const n = currentPage(body);
+  const el = document.getElementById('vpage'); if (el) el.textContent = `${n} / ${V.pdf.numPages}`;
+  clearTimeout(V.saveT); const id = V.id; V.saveT = setTimeout(() => { if (id) putLastPage(id, n); }, 400);
+}
+viewer.addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if (!b) return;
+  const v = b.dataset.v;
+  if (v === 'close') vClose(false);
+  else if (v === 'open') openRef(b.dataset.id);
+  else if ((v === 'zin' || v === 'zout') && V.pdf) {
+    const steps = [1, 1.5, 2, 3]; const i = steps.indexOf(V.zoom);
+    const nz = steps[Math.max(0, Math.min(steps.length - 1, i + (v === 'zin' ? 1 : -1)))];
+    if (nz !== V.zoom) { const body = document.getElementById('vbody'); const n = currentPage(body); V.zoom = nz; layoutPages(n); }
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !viewer.hidden) vClose(false); });
+
 /* ---------- boot ---------- */
 async function init() {
   S.me = getName() || null;
@@ -1356,12 +1593,13 @@ document.addEventListener('visibilitychange', () => {
   if (S.cloud && document.visibilityState === 'visible') S.db.refresh().catch(() => {});
 });
 function subscribe(db, timer) {
-  for (const col of ['runs', 'samples', 'records']) {
+  for (const col of COLS) {
     db.collection(col).onSnapshot(snap => {
       const m = {}; for (const d of snap.docs) m[d.id] = d.data();
       S[col] = m;
       if (!snap.metadata.fromCache) S.got.add(col);
-      if (S.got.size === 3 && S.phase !== 'error') { clearTimeout(timer); S.phase = 'ready'; }
+      if (S.got.size === COLS.length && S.phase !== 'error') { clearTimeout(timer); S.phase = 'ready'; }
+      if (col === 'refs') refreshCached();
       syncDrafts(); schedule();
     }, err => {
       clearTimeout(timer); S.phase = 'error'; S.err = err && err.code || ''; schedule();
