@@ -1111,8 +1111,17 @@ function backupPanel() {
       <div class="actions">
         <button class="ghost" data-act="bkExport">백업 파일 내려받기</button><button class="ghost" data-act="bkImport">백업 불러오기</button>
         ${S.ui.nm ? '' : '<button class="ghost" data-act="nameEdit">기록자 이름 변경</button>'}
+        ${S.ui.pw ? '' : '<button class="ghost" data-act="pwOpen">팀 비밀번호 바꾸기</button>'}
         <button class="ghost danger" data-act="logout">이 기기에서 로그아웃</button>
       </div>
+      ${S.ui.pw ? `<div class="cfform" aria-label="팀 비밀번호 바꾸기">
+        <b>팀 비밀번호 바꾸기</b>
+        <label class="fl" for="pw-cur">현재 팀 비밀번호<input id="pw-cur" type="password" data-ui="pwCur" autocomplete="current-password" value="${esc(S.ui.pwCur || '')}"></label>
+        <label class="fl" for="pw-new">새 팀 비밀번호 (6자 이상)<input id="pw-new" type="password" data-ui="pwNew" autocomplete="new-password" value="${esc(S.ui.pwNew || '')}"></label>
+        <label class="fl" for="pw-new2">새 팀 비밀번호 한 번 더<input id="pw-new2" type="password" data-ui="pwNew2" data-enter="pwSave" autocomplete="new-password" value="${esc(S.ui.pwNew2 || '')}"></label>
+        <p>바꾼 뒤에는 조원들에게 새 비밀번호를 알려 주세요. 이미 들어와 있는 기기는 로그아웃되지 않습니다.</p>
+        <div class="actions"><button class="primary sm" data-act="pwSave">비밀번호 바꾸기</button><button class="ghost sm" data-act="pwCancel">취소</button></div>
+      </div>` : ''}
       <input type="file" id="bk-file" accept=".json,application/json" hidden>
     </section>`;
   }
@@ -1231,6 +1240,25 @@ A.login = async () => {
   startCloud();
 };
 A.logout = async () => { try { await S.sb.auth.signOut(); } catch (e) {} location.reload(); };
+A.pwOpen = () => { S.ui.pw = true; S.ui.pwCur = ''; S.ui.pwNew = ''; S.ui.pwNew2 = ''; };
+A.pwCancel = () => { S.ui.pw = false; };
+A.pwSave = async () => {
+  const cur = S.ui.pwCur || '', nw = S.ui.pwNew || '', nw2 = S.ui.pwNew2 || '';
+  if (!cur) { toast('현재 팀 비밀번호를 입력해 주세요'); return; }
+  if (nw.length < 6) { toast('새 비밀번호는 6자 이상이어야 합니다'); return; }
+  if (nw !== nw2) { toast('새 비밀번호 두 칸이 서로 다릅니다'); return; }
+  if (nw === cur) { toast('현재 비밀번호와 다른 비밀번호를 입력해 주세요'); return; }
+  let err = null;
+  await busy('비밀번호를 바꾸는 중…', async () => {
+    const chk = await S.sb.auth.signInWithPassword({ email: window.TFT_CONFIG.teamEmail, password: cur });
+    if (chk.error) { err = '현재 팀 비밀번호가 맞지 않습니다.'; return; }
+    const up = await S.sb.auth.updateUser({ password: nw });
+    if (up.error) err = /weak|short|least/i.test(up.error.message) ? '새 비밀번호가 너무 짧거나 쉽습니다. 더 길게 정해 주세요.' : '바꾸지 못했습니다: ' + up.error.message;
+  });
+  if (err) { toast(err); return; }
+  S.ui.pw = false; S.ui.pwCur = S.ui.pwNew = S.ui.pwNew2 = '';
+  toast('팀 비밀번호를 바꿨습니다. 조원들에게 새 비밀번호를 알려 주세요.');
+};
 A.nameEdit = () => { S.ui.nm = true; S.ui.nmName = S.me || ''; };
 A.nameCancel = () => { S.ui.nm = false; };
 A.nameSave = () => { const v = (S.ui.nmName || '').trim(); putName(v); S.me = v || null; S.ui.nm = false; toast('기록자 이름을 바꿨습니다'); };
