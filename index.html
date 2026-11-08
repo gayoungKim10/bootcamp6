@@ -116,7 +116,7 @@ fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
 .tab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .tab.on small{color:inherit;opacity:.7}
 .tab.dash{border-style:dashed;background:transparent;color:var(--muted)}
-.tab.tl{margin-left:auto}
+.tab.tltab{margin-left:auto}
 .runmenu{display:flex;gap:8px;flex-wrap:wrap;padding-block:0 10px}
 
 .samplebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-block:14px 4px}
@@ -180,6 +180,16 @@ fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:16px}
 .dt{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .dt input[type=date]{flex:1 1 150px}
 .dt input[type=time]{flex:1 1 110px}
+.dtgrid{display:grid;gap:8px}
+.dtcell{display:flex;align-items:center;gap:8px;min-width:0}
+.dtk{flex:none;width:30px;font-size:12px;color:var(--muted);font-weight:600}
+.dtcell input{flex:1;min-width:0}
+.xbtn{flex:none;border:1px solid var(--line);background:transparent;border-radius:8px;padding:8px 10px;font-size:13px;color:var(--muted);white-space:nowrap}
+.xbtn:hover{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.ntchip{flex:1;padding:9px 12px;border-radius:8px;background:var(--amber-soft);color:var(--amber-ink);font-size:14px;font-weight:600}
+.dtacts{display:flex;gap:6px;flex-wrap:wrap;padding-left:38px}
+.ghost.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-ink)}
+@media (min-width:600px){ .dtgrid{grid-template-columns:1fr 1fr} .dtacts{grid-column:1/-1} }
 .unit{display:flex;align-items:center;gap:6px}
 .unit span,.ms span{font-size:13px;color:var(--muted);flex:none}
 .unit input{max-width:130px}
@@ -318,7 +328,13 @@ const clone = o => JSON.parse(JSON.stringify(o ?? null));
 const DOW = '일월화수목금토';
 const p2 = n => String(n).padStart(2, '0');
 function fmtD(d) { if (!d) return ''; const x = new Date(d + 'T00:00'); if (isNaN(x)) return d; return `${x.getMonth() + 1}/${x.getDate()}(${DOW[x.getDay()]})`; }
-function fmtDT(o) { if (!o) return ''; if (!o.d) return o.t || ''; return fmtD(o.d) + (o.t ? ' ' + o.t : ''); }
+function fmtDT(o) {
+  if (!o) return '';
+  const tt = o.t ? o.t : (o.nt ? '시간 모름' : '');
+  if (!o.d) return tt;
+  return fmtD(o.d) + (tt ? ' ' + tt : '');
+}
+const getPath = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 function toDate(o) { if (!o || !o.d || !o.t) return null; const x = new Date(o.d + 'T' + o.t); return isNaN(x) ? null : x; }
 function fmtMin(min) {
   min = Math.round(min); const h = Math.floor(min / 60), m = min % 60;
@@ -562,8 +578,9 @@ function toast(msg) { S.toast = msg; schedule(); clearTimeout(toastTimer); toast
 let queued = false, composing = false, held = false;
 function schedule() {
   if (queued) return; queued = true;
-  requestAnimationFrame(() => { queued = false; if (composing) { held = true; return; } render(); });
+  requestAnimationFrame(() => { queued = false; if (composing || pickerOpen()) { held = true; return; } render(); });
 }
+function pickerOpen() { const a = document.activeElement; return !!(a && app.contains(a) && a.dataset && a.dataset.dt); }
 app.addEventListener('compositionstart', () => { composing = true; });
 app.addEventListener('compositionend', () => { composing = false; if (held) { held = false; schedule(); } });
 
@@ -665,7 +682,7 @@ function runView() {
   h += `<nav class="tabs" aria-label="샘플">`;
   for (const s of ss) { const p = progress(s); h += `<button class="tab ${S.tab === s.id ? 'on' : ''}" data-act="tab" data-id="${s.id}" aria-current="${S.tab === s.id}">${esc(s.name)}<small>${p.done}/${p.total}</small></button>`; }
   h += `<button class="tab dash w" data-act="snOpen">+ 샘플</button>`;
-  h += `<button class="tab tl ${S.tab === 'tl' ? 'on' : ''}" data-act="tab" data-id="tl">타임라인</button></nav></div>`;
+  h += `<button class="tab tltab ${S.tab === 'tl' ? 'on' : ''}" data-act="tab" data-id="tl">타임라인</button></nav></div>`;
   h += statusNotices();
   if (S.ui.sn) {
     h += `<section class="panel w" style="margin-top:12px" aria-label="샘플 추가"><h3>샘플 추가</h3>
@@ -750,15 +767,41 @@ function card(rid, r, i, sid, count) {
 
 const fidOf = (rid, f) => 'f-' + rid + '-' + f.replace(/\./g, '-');
 function inp(rid, f, val, o = {}) {
-  return `<input id="${fidOf(rid, f)}" type="${o.type || 'text'}" ${o.mode ? `inputmode="${o.mode}"` : ''} data-rid="${rid}" data-f="${f}" ${o.rr ? 'data-rr="1"' : ''} value="${esc(val)}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.al ? `aria-label="${esc(o.al)}"` : ''} autocomplete="off">`;
+  return `<input id="${fidOf(rid, f)}" type="${o.type || 'text'}" ${o.mode ? `inputmode="${o.mode}"` : ''} data-rid="${rid}" data-f="${f}" ${o.rr ? 'data-rr="1"' : ''} ${o.dt ? 'data-dt="1"' : ''} value="${esc(val)}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.al ? `aria-label="${esc(o.al)}"` : ''} autocomplete="off">`;
 }
 function dtField(rid, key, o, label) {
-  return `<div class="fld"><span class="lbl">${label}</span><div class="dt">
-    ${inp(rid, key + '.d', o?.d || '', { type: 'date', rr: true, al: label + ' 날짜' })}
-    ${inp(rid, key + '.t', o?.t || '', { type: 'time', rr: true, al: label + ' 시각' })}
-    <button class="ghost sm" data-act="nowdt" data-rid="${rid}" data-k="${key}">지금</button>
-    ${(o?.d || o?.t) ? `<button class="ghost sm" data-act="cleardt" data-rid="${rid}" data-k="${key}" aria-label="${label} 지우기">지우기</button>` : ''}
+  const nt = !!(o && o.nt);
+  const xb = (path, what) => `<button class="xbtn" data-act="clr" data-rid="${rid}" data-k="${path}" data-xfor="${rid}:${path}" aria-label="${label} ${what} 지우기" ${getPath({ [key]: o }, path) ? '' : 'hidden'}>× 지우기</button>`;
+  return `<div class="fld"><span class="lbl">${label}</span><div class="dtgrid">
+    <div class="dtcell"><span class="dtk">날짜</span>${inp(rid, key + '.d', o?.d || '', { type: 'date', dt: true, al: label + ' 날짜' })}${xb(key + '.d', '날짜')}</div>
+    <div class="dtcell"><span class="dtk">시간</span>${nt
+      ? `<span class="ntchip">시간 모름</span>`
+      : `${inp(rid, key + '.t', o?.t || '', { type: 'time', dt: true, al: label + ' 시간' })}${xb(key + '.t', '시간')}`}</div>
+    <div class="dtacts">
+      <button class="ghost sm" data-act="nowdt" data-rid="${rid}" data-k="${key}">지금</button>
+      <button class="ghost sm ${nt ? 'on' : ''}" data-act="ntToggle" data-rid="${rid}" data-k="${key}" aria-pressed="${nt}">${nt ? '시간 입력하기' : '시간 모름'}</button>
+    </div>
   </div></div>`;
+}
+function durInfo(d) {
+  if (!d.start?.d) return null;
+  if (!d.end?.d) return { html: '시작만 기록됨 · 종료를 입력하면 총 소요 시간이 계산됩니다' };
+  if (d.start.nt || d.end.nt) {
+    const days = Math.round((new Date(d.end.d + 'T00:00') - new Date(d.start.d + 'T00:00')) / 86400000);
+    if (days < 0) return { html: '종료 날짜가 시작보다 앞섭니다. 날짜를 확인해 주세요.', bad: true };
+    return { html: `시간을 모르는 기록이 있어 날짜 기준으로만 표시: <b>${days ? '약 ' + days + '일' : '같은 날'}</b>` };
+  }
+  const sp = ovenSpan(d);
+  if (sp == null) return { html: '시작과 종료의 시간을 모두 입력하면 소요 시간이 계산됩니다' };
+  if (sp < 0) return { html: '종료가 시작보다 앞섭니다. 날짜와 시간을 확인해 주세요.', bad: true };
+  return { html: `총 소요 시간 <b>${fmtMin(sp)}</b>${d.end.d !== d.start.d ? ' · 날짜를 넘김' : ''}` };
+}
+/* 날짜·시간 입력 중에는 화면 전체를 다시 그리지 않고 바뀐 부분만 고친다 (입력 창이 닫히지 않도록) */
+function refreshDT(rid) {
+  const dr = S.drafts[rid]; if (!dr) return; const d = dr.data;
+  document.querySelectorAll(`[data-xfor^="${rid}:"]`).forEach(b => { b.hidden = !getPath(d, b.dataset.xfor.split(':')[1]); });
+  const box = document.getElementById('dur-' + rid);
+  if (box) { const r = durInfo(d); box.hidden = !r; if (r) { box.className = 'durbox' + (r.bad ? ' bad' : ''); box.innerHTML = r.html; } }
 }
 function cardBody(rid, r, i, sid, count) {
   const dr = ensureDraft(rid); if (!dr) return '';
@@ -780,15 +823,8 @@ function cardBody(rid, r, i, sid, count) {
   if (d.type === 'oven') {
     h += dtField(rid, 'start', d.start, '시작') + dtField(rid, 'end', d.end, '종료');
     h += `<div class="fld"><label class="lbl" for="${fidOf(rid, 'temp')}">온도</label><div class="unit">${inp(rid, 'temp', d.temp, { mode: 'decimal' })}<span>℃</span></div></div>`;
-    if (d.start?.d) {
-      const sp = ovenSpan(d);
-      let t, bad = false;
-      if (!d.end?.d) t = '시작만 기록됨 · 종료를 입력하면 총 소요 시간이 계산됩니다';
-      else if (sp == null) t = '시작과 종료의 시각을 모두 입력하면 소요 시간이 계산됩니다';
-      else if (sp < 0) { t = '종료가 시작보다 앞섭니다. 날짜를 확인해 주세요.'; bad = true; }
-      else t = `총 소요 시간 <b>${fmtMin(sp)}</b>${d.end.d !== d.start.d ? ' · 날짜를 넘김' : ''}`;
-      h += `<div class="durbox ${bad ? 'bad' : ''}">${t}</div>`;
-    }
+    const di = durInfo(d);
+    h += `<div class="durbox ${di && di.bad ? 'bad' : ''}" id="dur-${rid}" ${di ? '' : 'hidden'}>${di ? di.html : ''}</div>`;
   } else {
     h += dtField(rid, 'at', d.at, '진행 일시');
   }
@@ -906,7 +942,7 @@ function timelineView(ss) {
     }
     const firstS = [...r.sampleIds].sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
     h += `<button class="tl-row ${st}" data-act="goto" data-rid="${e.id}" data-sid="${firstS}">
-      <span class="tl-t">${e.t || '--:--'}</span>
+      <span class="tl-t">${e.t || ((r.type === 'oven' ? r.start : r.at)?.nt ? '시간?' : '--:--')}</span>
       <span class="tl-main"><span><b>${esc(title(r))}</b> ${badges(r.sampleIds)}</span>${det.length ? `<span class="tl-d">${det.join(' · ')}</span>` : ''}</span>
     </button>`;
   }
@@ -926,6 +962,13 @@ const A = {
   setf(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.f, ds.v); },
   nowdt(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.k, nowDT()); },
   cleardt(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.k, { d: '', t: '' }); },
+  clr(ds) { const dr = dirty(ds.rid); if (dr) setPath(dr.data, ds.k, ''); },
+  ntToggle(ds) {
+    const dr = dirty(ds.rid); if (!dr) return;
+    const o = { d: '', t: '', ...(getPath(dr.data, ds.k) || {}) };
+    o.nt = !o.nt; if (o.nt) o.t = '';
+    setPath(dr.data, ds.k, o);
+  },
   fxedit(ds) { S.ui.fx = ds.rid + ':' + ds.i; },
   fxdone() { S.ui.fx = null; },
   rowadd(ds) { const dr = dirty(ds.rid); dr.data.rows = dr.data.rows || []; dr.data.rows.push(newRow('')); },
@@ -1009,6 +1052,10 @@ app.addEventListener('input', e => {
   if (el.dataset.f && el.dataset.rid) {
     const rid = el.dataset.rid; const dr = ensureDraft(rid); if (!dr) return;
     setPath(dr.data, el.dataset.f, el.value);
+    if (el.dataset.dt) {
+      if (el.type === 'time' && el.value) setPath(dr.data, el.dataset.f.replace(/\.t$/, '.nt'), false);
+      refreshDT(rid);
+    }
     if (!dr.dirty) {
       dr.dirty = true;
       const u = document.getElementById('u-' + rid); if (u) u.hidden = false;
@@ -1025,7 +1072,14 @@ app.addEventListener('change', e => {
     el.checked ? a.add(el.value) : a.delete(el.value); S.ui[k] = [...a]; schedule();
   } else if (el.dataset.ui && (el.tagName === 'SELECT' || el.type === 'checkbox')) {
     S.ui[el.dataset.ui] = el.type === 'checkbox' ? el.checked : el.value; schedule();
+  } else if (el.dataset.dt && el.dataset.rid) {
+    const dr = ensureDraft(el.dataset.rid);
+    if (dr) { setPath(dr.data, el.dataset.f, el.value); refreshDT(el.dataset.rid); }
   } else if (el.dataset.rr) schedule();
+});
+/* 날짜·시간 선택 창이 열려 있는 동안에는 다른 조원의 저장 등으로 화면을 다시 그리지 않는다 */
+app.addEventListener('focusout', e => {
+  if (e.target && e.target.dataset && e.target.dataset.dt) setTimeout(() => { if (held && !pickerOpen()) { held = false; schedule(); } }, 0);
 });
 
 /* ---------- this-device storage (used outside claude.ai, e.g. GitHub Pages) ---------- */
