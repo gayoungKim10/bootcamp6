@@ -1205,7 +1205,6 @@ function backupPanel() {
         <p>바꾼 뒤에는 조원들에게 새 비밀번호를 알려 주세요. 이미 들어와 있는 기기는 로그아웃되지 않습니다.</p>
         <div class="actions"><button class="primary sm" data-act="pwSave">비밀번호 바꾸기</button><button class="ghost sm" data-act="pwCancel">취소</button></div>
       </div>` : ''}
-      <input type="file" id="bk-file" accept=".json,application/json" hidden>
     </section>`;
   }
   return `<section class="panel" aria-label="백업">
@@ -1213,12 +1212,19 @@ function backupPanel() {
     <p>지금 기록은 이 브라우저에만 저장되고 조원에게는 보이지 않습니다. 방문 기록을 지우거나, 아이폰 Safari에서 7일 넘게 열지 않으면 사라질 수 있으니 백업 파일을 자주 내려받아 두세요. 백업 파일로 다른 기기에 옮기거나 나중에 공유 저장소로 옮길 수 있습니다.</p>
     <p>마지막 백업: <b>${lb ? stamp(lb) : '아직 없음'}</b></p>
     <div class="actions"><button class="primary" data-act="bkExport">백업 파일 내려받기</button><button class="ghost" data-act="bkImport">백업 불러오기</button></div>
-    <input type="file" id="bk-file" accept=".json,application/json" hidden>
   </section>`;
 }
 A.bkExport = () => exportBackup();
-A.bkImport = () => { const f = document.getElementById('bk-file'); if (f) { f.value = ''; f.click(); } };
-app.addEventListener('change', e => { if (e.target.id === 'bk-file' && e.target.files && e.target.files[0]) importBackup(e.target.files[0]); });
+/* 파일 선택 상자는 화면을 다시 그려도 바뀌지 않도록 #app 밖에 한 번만 만든다 */
+function filePicker(id, accept, onPick) {
+  const el = document.createElement('input');
+  el.type = 'file'; el.id = id; el.accept = accept; el.hidden = true;
+  el.addEventListener('change', () => { const f = el.files && el.files[0]; if (f) onPick(f); el.value = ''; });
+  document.body.appendChild(el);
+  return el;
+}
+const bkInput = filePicker('bk-file', '.json,application/json', f => importBackup(f));
+A.bkImport = () => { bkInput.click(); };
 
 /* ---------- team storage (Supabase) ---------- */
 function cloudStore(sb) {
@@ -1411,14 +1417,17 @@ function refsPanel() {
     </div>`;
     if (S.ui.confirm === 'ref:' + r.id) h += `<div class="confirm"><span>「${esc(r.name)}」을 팀 자료에서 삭제합니다. 모든 조원에게서 사라집니다.</span><button class="primary sm" data-act="refDel" data-id="${r.id}" style="background:var(--warn);border-color:var(--warn)">삭제</button><button class="ghost sm" data-act="cancelConfirm">취소</button></div>`;
   }
-  h += `</div><button class="add w" data-act="refPick">+ PDF 올리기 (50MB 이하)</button><input type="file" id="ref-file" accept="application/pdf,.pdf" hidden>`;
+  if (S.refFail) h += `<div class="notice warn"><b>올리지 못했습니다</b> · ${esc(S.refFail.msg)}<br><small>파일: ${esc(S.refFail.file)}<br>오류 내용: ${esc(S.refFail.raw)} · ${esc(S.refFail.at)}</small><div class="actions" style="margin-top:8px"><button class="ghost sm" data-act="refFailClose">닫기</button></div></div>`;
+  h += `</div><button class="add w" data-act="refPick">+ PDF 올리기 (50MB 이하)</button>`;
   return h;
 }
 async function uploadRef(file) {
-  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast('PDF 파일만 올릴 수 있습니다'); return; }
+  let head = '';
+  try { head = new TextDecoder().decode(await file.slice(0, 1024).arrayBuffer()); } catch (e) {}
+  if (!head.includes('%PDF')) { S.refFail = { msg: 'PDF 파일이 아닌 것 같습니다. PDF 파일을 골라 주세요.', raw: '파일 앞부분에 PDF 표시가 없음', file: `${file.name} (${fmtSize(file.size)}, 형식: ${file.type || '알 수 없음'})`, at: stamp(now()) }; toast('PDF 파일만 올릴 수 있습니다'); schedule(); return; }
   if (file.size > 50 * 1048576) { toast(`파일이 ${fmtSize(file.size)}라 너무 큽니다. 50MB 이하만 올릴 수 있습니다.`); return; }
   const id = uid(), path = `ref-${id}.pdf`, t = now();
-  const meta = { name: file.name.replace(/\.pdf$/i, ''), path, size: file.size, uploadedAt: t, uploadedBy: S.me || null };
+  const meta = { name: (file.name || '참고 자료').replace(/\.pdf$/i, ''), path, size: file.size, uploadedAt: t, uploadedBy: S.me || null };
   let err = null;
   await busy(`「${meta.name}」 올리는 중… ${fmtSize(file.size)} · 와이파이에서 올리는 것을 권장합니다`, async () => {
     const up = await S.sb.storage.from(REF_BUCKET).upload(path, file, { contentType: 'application/pdf', upsert: false });
@@ -1426,7 +1435,12 @@ async function uploadRef(file) {
     try { await D('refs/' + id).set(meta); }
     catch (e) { err = e; await S.sb.storage.from(REF_BUCKET).remove([path]); }
   });
-  if (err) { toast(refErr(err)); return; }
+  if (err) {
+    const raw = [err.statusCode || err.status || err.code || '', err.error || '', err.message || String(err)].filter(Boolean).join(' · ');
+    S.refFail = { msg: refErr(err), raw, file: `${file.name} (${fmtSize(file.size)}, 형식: ${file.type || '알 수 없음'})`, at: stamp(now()) };
+    toast(refErr(err)); return;
+  }
+  S.refFail = null;
   if (await cachePut(meta, file)) S.cachedRefs.add(id);
   schedule();
   toast(`「${meta.name}」을 올렸습니다. 조원 모두 볼 수 있습니다.`);
@@ -1443,9 +1457,10 @@ async function deleteRef(id) {
 }
 A.refOpen = ds => { openRef(ds.id); };
 A.refList = () => { openRefList(); };
-A.refPick = () => { const f = document.getElementById('ref-file'); if (f) { f.value = ''; f.click(); } };
+A.refFailClose = () => { S.refFail = null; };
+const refInput = filePicker('ref-file', 'application/pdf,.pdf', f => uploadRef(f));
+A.refPick = () => { refInput.click(); };
 A.refDel = ds => deleteRef(ds.id).catch(e => toast(refErr(e)));
-app.addEventListener('change', e => { if (e.target.id === 'ref-file' && e.target.files && e.target.files[0]) uploadRef(e.target.files[0]); });
 
 /* viewer */
 const viewer = document.getElementById('viewer');
